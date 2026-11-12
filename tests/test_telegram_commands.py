@@ -56,12 +56,12 @@ def test_format_roster_lines():
             "roles": ["coder"],
             "models": ["llama3.2:3b"],
             "vram_gb": 16.0,
-            "gpu": "gpu-a",
+            "gpu": "test-gpu-a",
         }
     ]
     out = format_roster(nodes)
     assert "1 nodes:" in out
-    assert "node-a-coder roles=coder models=llama3.2:3b vram=16GB gpu=gpu-a" in out
+    assert "node-a-coder roles=coder models=llama3.2:3b vram=16GB gpu=test-gpu-a" in out  # leakscan:ok
 
 
 def test_format_roster_empty():
