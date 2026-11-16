@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
 
 from . import acl, clarify
@@ -19,12 +20,15 @@ from .fsutil import apply_artifacts
 from .observations import TaskObservation, observation_from_snapshot
 from .pheromone import route_strategy, task_type_from_prompt
 from .schema import (
+    SUBJECT_ALLOC,
     SUBJECT_CMD,
     SUBJECT_CONTROL,
+    SUBJECT_HEALTH_ALL,
     SUBJECT_HEARTBEAT,
     SUBJECT_LEDGER,
     SUBJECT_SUBMIT_NODE,
     TERMINAL_STATES,
+    AllocResult,
     Background,
     CoderOutput,
     ControlCommand,
@@ -34,6 +38,8 @@ from .schema import (
     IntermediateOutput,
     Kind,
     MessageTuple,
+    ModelEntry,
+    NodeHealth,
     PlannerOutput,
     ResultPayload,
     Role,
@@ -52,6 +58,92 @@ log = logging.getLogger(__name__)
 # M8: live router cadence + subject for published rankings.
 ROUTER_INTERVAL = 10.0
 ROUTER_SUBJECT = "mesh.router.scores"
+
+
+# --- T5: planner allocation over the health twin -----------------------------
+
+
+class Allocator:
+    """Selects a node for a model from the live health twin.
+
+    Selection order: (1) model already loaded → load time 0 wins,
+    (2) most free VRAM that fits the (estimated) size. Claims are
+    reservations per task: a second alloc for the same task is
+    idempotent; capacity consumed by one claim is excluded for others.
+    """
+
+    def __init__(self, twin_stale_s: int = 30):
+        self.twin_stale_s = twin_stale_s
+        self._health: dict[str, NodeHealth] = {}
+        self._seen_at: dict[str, float] = {}
+        self._claims: dict[str, str] = {}  # task_id → node
+        self._reserved_mb: dict[str, float] = {}  # node → reserved VRAM
+
+    def update_health(self, *healths: NodeHealth) -> None:
+        for health in healths:
+            self._health[health.node] = health
+            self._seen_at[health.node] = time.time()
+
+    def _fresh(self) -> dict[str, NodeHealth]:
+        now = time.time()
+        fresh: dict[str, NodeHealth] = {}
+        for node, h in self._health.items():
+            if now - self._seen_at.get(node, 0.0) > self.twin_stale_s:
+                continue
+            try:  # announced ts must also be recent (staleness kills a node)
+                age = now - datetime.fromisoformat(
+                    h.ts.replace("Z", "+00:00")
+                ).timestamp()
+                if age > self.twin_stale_s:
+                    continue
+            except ValueError:
+                pass
+            fresh[node] = h
+        return fresh
+
+    def select(
+        self, model: str, task_id: str, size_mb: float = 0.0
+    ) -> AllocResult:
+        if task_id and task_id in self._claims:
+            node = self._claims[task_id]
+            return AllocResult(ok=True, model=model, node=node)
+
+        fresh = self._fresh()
+        if not fresh:
+            return AllocResult(ok=False, model=model, reason="no_node")
+
+        # (1) already loaded somewhere → zero load time wins.
+        for node, health in sorted(
+            fresh.items(), key=lambda kv: -kv[1].models.get(model, ModelEntry()).vram_mb
+        ):
+            entry = health.models.get(model)
+            if entry is not None and entry.loaded:
+                return self._claim(AllocResult(ok=True, model=model, node=node),
+                                   task_id, 0.0)
+
+        # (2) most free VRAM (minus reservations) that fits the size.
+        candidates = []
+        for node, health in fresh.items():
+            free = health.gpu.vram_free_mb - self._reserved_mb.get(node, 0.0)
+            if free >= max(size_mb, 0.0):
+                candidates.append((free, node))
+        if not candidates:
+            return AllocResult(ok=False, model=model, reason="no_node")
+        candidates.sort(reverse=True)
+        free, node = candidates[0]
+        return self._claim(
+            AllocResult(ok=True, model=model, node=node), task_id, size_mb
+        )
+
+    def _claim(
+        self, result: AllocResult, task_id: str, size_mb: float
+    ) -> AllocResult:
+        if task_id:
+            self._claims[task_id] = result.node or ""
+        node = result.node or ""
+        if node and size_mb:
+            self._reserved_mb[node] = self._reserved_mb.get(node, 0.0) + size_mb
+        return result
 
 
 class Orchestrator:
@@ -82,6 +174,16 @@ class Orchestrator:
         # T2: human intervention commands (submit/cancel/retry/stop_worker)
         # from approved channels — grant-checked, then ledger-recorded.
         self._control_sub = await self.bus.nc.subscribe(SUBJECT_CONTROL, cb=self._on_control)
+        # T5: model-management twin + planner allocation server.
+        self._allocator = Allocator(
+            twin_stale_s=self.settings.twin_stale_s
+        )
+        self._health_sub = await self.bus.nc.subscribe(
+            SUBJECT_HEALTH_ALL, cb=self._on_health
+        )
+        self._alloc_sub = await self.bus.nc.subscribe(
+            SUBJECT_ALLOC, cb=self._on_alloc
+        )
         self._results = await self.bus.pull_results(
             durable=f"orchestrator-results-{self.settings.node_name}"
         )
@@ -201,6 +303,34 @@ class Orchestrator:
             await self._apply(snapshot, Event("start"))
         await self._maybe_request_model(snapshot)
         return snapshot
+
+    # -- T5: health twin + planner allocation ---------------------------------
+
+    async def _on_health(self, message) -> None:
+        """Consume NodeHealth announces into the MODEL_MATRIX twin."""
+        try:
+            envelope = Envelope.model_validate_json(message.data)
+            health = NodeHealth.model_validate(envelope.payload)
+        except Exception:  # noqa: BLE001 - malformed health must not crash
+            log.warning("discarding malformed health announce")
+            return
+        self._allocator.update_health(health)
+
+    async def _on_alloc(self, message) -> None:
+        """mesh.alloc.request: planner asks for a node for one model."""
+        from .schema import AllocRequest
+
+        try:
+            request = AllocRequest.model_validate_json(message.data)
+        except Exception:  # noqa: BLE001
+            await message.respond(
+                json.dumps(
+                    {"ok": False, "model": "", "reason": "bad_request"}
+                ).encode()
+            )
+            return
+        result = self._allocator.select(request.model, request.task_id)
+        await message.respond(result.model_dump_json().encode())
 
     # -- T2: human intervention over approved channels -----------------------
 
