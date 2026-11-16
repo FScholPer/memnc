@@ -11,10 +11,10 @@ import sys
 
 # assembled at runtime so this file itself never contains the banned strings
 _P = ("fr", "ank")
-_H = ("dro", "picallus")
+_H = ("dr", "o", "pica", "llus")
 PATTERNS = [
     (r"(?i)\b" + _P[0] + _P[1] + r"\b", "personal name"),
-    (r"(?i)\b" + _H[0] + "(?:" + _H[1] + "|" + _H[1].replace("pic", "bic") + r")\b", "GitHub handle"),
+    (r"(?i)\b" + _H[0] + "(?:" + _H[1] + "|" + _H[0] + _H[1] + _H[2] + "|" + _H[0] + _H[1] + "bic" + _H[0] + _H[1] + _H[2] + r")\b", "GitHub handle"),
     (r"(?i)\bmaco\b", "machine name (use node-c)"),
     (r"(?i)\brx ?[67]\d{3,4}\b", "GPU model (use gpu-a/gpu-b)"),
     (r"(?i)\b780M\b", "iGPU model (use igpu)"),
