@@ -2118,8 +2118,9 @@ mesh attempts are followed by backlog strong-retries that carry the work
 forward; blocking on them deadlocked the driver (observed 2026-11-16, 4
 planned entries idle for hours). Unknown dep ids (neither store) stay
 blocked, conservative. Follow-ups: root-cause intermittent
-`driver error: nats: no keys found`; clean old night/smoke entries from the
-backlog.
+`driver error: nats: no keys found` (still open); clean old night/smoke
+entries from the backlog (DONE 2026-11-16 — 29 stale night1/2/3/smoke1
+entries removed live via the new `backlog-del`, backlog 31 -> 12 entries).
 
 ## 16.2 design-ship-gate.md (BUILT — ship-gate V2)
 
