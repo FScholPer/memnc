@@ -163,6 +163,13 @@ class Settings(BaseSettings):
     # deployment (DONE_REQUIRES_ACTIVITY=1): pure writing tasks legitimately
     # finish with zero tools.
     done_requires_activity: bool = False
+
+    # 15.4.5 gap 2: after the critic verdict, run deterministic acceptance
+    # checks parsed from the plan's per-step ``acceptance`` fields. A failing
+    # check blocks the verdict from standing and drives the revision loop
+    # with the check output as the issue text. No-op when no plan step
+    # carries parseable criteria.
+    acceptance_gate: bool = True
     # Ship-gate V2 (docs/design-ship-gate.md): mechanical deliverable
     # checks, opt-in like done_requires_activity. 0 = check off.
     verify_min_lines: int = 0
