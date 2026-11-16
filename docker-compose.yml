@@ -151,6 +151,7 @@ services:
     environment:
       <<: *mesh-env
       NODE_NAME: orchestrator
+      NATS_NKEYS_SEED: /secrets/orchestrator.nk
     depends_on:
       nats:
         condition: service_healthy
@@ -165,6 +166,7 @@ services:
       <<: *mesh-env
       ROLE: planner
       NODE_NAME: ${NODE_NAME:-node-a}-planner
+      NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-planner.nk
       MODEL_PLANNER: ${MODEL_PLANNER:-qwen2.5:7b}
     depends_on:
       nats:
@@ -180,6 +182,7 @@ services:
       <<: *mesh-env
       ROLE: coder
       NODE_NAME: ${NODE_NAME:-node-a}-coder
+      NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-coder.nk
       MODEL_CODER: ${MODEL_CODER:-qwen2.5-coder:7b}
     depends_on:
       nats:
@@ -195,6 +198,7 @@ services:
       <<: *mesh-env
       ROLE: critic
       NODE_NAME: ${NODE_NAME:-node-a}-critic
+      NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-critic.nk
       MODEL_CRITIC: ${MODEL_CRITIC:-llama3.1:8b}
     depends_on:
       nats:
@@ -209,6 +213,7 @@ services:
     environment:
       <<: *mesh-env
       NODE_NAME: ${NODE_NAME:-node-a}-telegram
+      NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-telegram.nk
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW: ${TELEGRAM_ALLOW:-}
       TELEGRAM_POLL_S: ${TELEGRAM_POLL_S:-25}

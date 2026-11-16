@@ -11,6 +11,7 @@ services:
       <<: *mesh-env
       ROLE: coder
       NODE_NAME: ${NODE_NAME:-node-a}-gpu
+      NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-gpu.nk
       MODEL_CODER: ${MODEL_CODER:-qwen2.5-coder:32b}
       # advertise the real GPU to the roster (T6)
       NODE_GPU: "gpu-b"
