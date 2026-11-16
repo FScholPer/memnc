@@ -720,6 +720,7 @@ class TaskSnapshot(BaseModel):
     plan: PlannerOutput | None = None
     code: CoderOutput | None = None
     critique: CriticOutput | None = None
+    acceptance: str = ""  # 15.4.5 gap 2: deterministic acceptance-check evidence
     final_review: PlanStep | None = None
     step_results: dict[str, str] = Field(default_factory=dict)
     inflight: dict[str, dict[str, Any]] = Field(default_factory=dict)

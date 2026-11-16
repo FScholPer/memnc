@@ -12,6 +12,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from . import clarify
+from .acceptance import acceptance_from_steps
 from .agent import extract_json, parse_role_output, run_agent
 from .backends import make_backend
 from .bus import Bus, emit_debate
@@ -1136,6 +1137,7 @@ class Worker:
                         await self._propose_retirement(coder_model, rep)
                 except Exception:  # noqa: BLE001 - reputation is best effort
                     log.warning("reputation recording failed", exc_info=True)
+                await self._acceptance_gate(snapshot)
                 await self._verify_gate(snapshot)
                 event = Event("result", ok=True, approved=snapshot.critique.approved)
         if envelope.node:
@@ -1204,6 +1206,41 @@ class Worker:
         store = ExperienceStore(self.settings.experience_store_path).load()
         if record_observation(store, observation):
             store.save()
+
+    async def _acceptance_gate(self, snapshot: TaskSnapshot) -> None:
+        """15.4.5 gap 2: deterministic acceptance checks from plan criteria.
+
+        Runs every machine-checkable criterion parsed from the plan steps'
+        ``acceptance`` fields against the real workspace. A failing check
+        blocks the critic verdict from standing (even an approval) and drives
+        the normal revision loop with the check output as the issue text.
+        Prose-only or absent acceptance fields make this a no-op gate.
+        """
+        plan = snapshot.plan
+        if plan is None or not plan.plan:
+            return
+        if not self.settings.acceptance_gate:
+            return
+        critique = snapshot.critique
+        if critique is None:
+            return
+        root = Path(self.settings.workspace_root)
+        report, total = await acceptance_from_steps(plan.plan, root)
+        snapshot.acceptance = report.evidence
+        if total == 0:
+            return
+        if report.all_passed:
+            log.info("acceptance gate passed for %s (%d checks)", snapshot.task_id, total)
+            return
+        fails = "\n".join(f"[FAIL] {r.line}: {r.evidence}" for r in report.results if not r.ok)
+        critique.approved = False
+        critique.issues = [
+            CriticIssue(
+                issue=f"acceptance check failed:\n{fails[:800]}",
+                severity="blocker",
+            )
+        ] + list(critique.issues or [])
+        snapshot.record("acceptance.failed", fails[:500])
 
     async def _verify_gate(self, snapshot: TaskSnapshot) -> None:
         """M14 deterministic verification gate.

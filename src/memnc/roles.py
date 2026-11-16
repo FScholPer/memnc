@@ -21,6 +21,12 @@ SYSTEM_PROMPTS: dict[Role, str] = {
         'do NOT guess: reply with {"question": "your question"} instead of a plan; '
         "the task is paused until a human answers and you are re-invoked with the answer "
         "appended to the task text. "
+        'Optionally add an "acceptance" field per plan step with machine-checkable '
+        "criteria, one per line. Supported kinds: `file_exists <path>`, "
+        "`file_min_size <path> <min_bytes>`, `file_contains <path> <regex>`, "
+        "`command <argv>` (must exit 0), `ffprobe_duration_min <path> <min_seconds>`. "
+        "Use them only when the deliverable is mechanically checkable; prose-only "
+        "acceptance text is ignored by the checker. "
         "Reply with ONLY a JSON object of the form:\n"
         '{"plan": [{"step": 1, "description": "...", "files": ["path"]}], "notes": "..."}\n'
         'or {"question": "..."} to ask back. No prose, no markdown fences.'

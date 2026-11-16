@@ -1846,7 +1846,7 @@ note must close them):
 3. Claimed vs. existing artifacts are never cross-checked: every file path
    in a code result is stat'ed by the orchestrator before DONE is written.
 
-### 15.4.5 DONE-gate hardening (design note, 2026-11-15, before coding)
+### 15.4.5 DONE-gate hardening (design note; gaps 1-2 shipped)
 
 Closing the three gaps from the fabrication finding above. Layered defense:
 each gate alone is defeatable; together they make fabrication expensive.
@@ -1867,17 +1867,28 @@ Gap 1 - structural activity gate (shipped with this note):
 - Honest limit: this is necessary, not sufficient. A fabricator that runs
   one real command passes the gate; gaps 2+3 carry the real weight.
 
-Gap 2 - deterministic acceptance checks (design, next slice):
-- The plan carries machine-checkable acceptance criteria (path + kind, e.g.
-  "file exists", "wav duration > 30 s" via ffprobe). After the coder
-  returns, a NEW acceptance step executes the checks on the worker
-  filesystem and returns pass/fail into the snapshot. Only a passing
-  acceptance step lets the critic verdict stand; a failing check drives the
-  normal revision loop with the check output as the issue text.
-- Checks are plain filesystem calls, never LLM judgment. Criterion schema
-  needs design (kinds: file_exists, file_min_size, command_output_matches,
-  ffprobe_duration_min) plus sandbox alignment with the existing tool
-  allowlist.
+Gap 2 - deterministic acceptance checks (SHIPPED, this slice):
+- New module `src/memnc/acceptance.py`: the planner's per-step
+  `acceptance` field carries machine-checkable criteria, one per line
+  (a tiny DSL documented in the planner system prompt):
+  `file_exists <path>`, `file_min_size <path> <min_bytes>`,
+  `file_contains <path> <regex>`, `command <argv>` (exit 0),
+  `ffprobe_duration_min <path> <min_seconds>`. Kind names are matched
+  case-insensitively (hyphen/underscore equivalent); unparsable lines are
+  recorded as ignored evidence, never silently dropped - prose-only
+  acceptance fields make the gate a no-op, not a pass.
+- Checks are plain filesystem/probe calls against the real workspace,
+  never LLM judgment. `command`/ffprobe subprocesses run in the workspace
+  with a curated env whitelist (no inherited secrets), a 30 s timeout,
+  whole-process-group kill on timeout, and bounded output.
+- Enforcement: `Worker._acceptance_gate` runs after the critic verdict is
+  stored and before `_verify_gate`. A failing check blocks the verdict
+  from standing (even an approval): it is overridden to reject with a
+  `blocker` CriticIssue carrying the check output, which drives the normal
+  revision loop. Evidence is stamped into `TaskSnapshot.acceptance` and an
+  `acceptance.failed` history event. Setting `acceptance_gate`
+  (default ON; `ACCEPTANCE_GATE=0` disables) - default on because the gate
+  is a no-op without parseable criteria. Tests: `tests/test_acceptance.py`.
 
 Gap 3 - claimed-vs-existing artifact cross-check (design, with gap 2):
 - SHIPPED 2026-11-15: the worker stamps `artifact_sizes` (path -> size in
