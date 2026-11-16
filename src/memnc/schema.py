@@ -64,6 +64,9 @@ SUBJECT_HEARTBEAT = "mesh.node.{node}.heartbeat"
 SUBJECT_DLQ = "mesh.dlq"
 # T3: per-node health announce; twin aggregates these into MODEL_MATRIX.
 SUBJECT_HEALTH = "mesh.node.health.{node}"
+SUBJECT_HEALTH_ALL = "mesh.node.health.*"
+# T5: planner asks for a node for one model (core request/reply).
+SUBJECT_ALLOC = "mesh.alloc.request"
 # --- M10: queryable mesh ledger (hive tracker, plan §0.5 D5) ---
 # Core-NATS request/reply, intentionally NOT covered by the JetStream stream
 # (same reason as mesh.task.submit: a stream-covered request would be answered
