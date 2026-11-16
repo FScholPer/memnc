@@ -1318,7 +1318,7 @@ Status (2026-11-14): stage 2 done — `memnc.bench.runner`:
     repo-own evidence for the single-agent>multi-structure finding;
     full seeded run (reps>=5) + raised inference timeout next.
 
-### 14.15.10 Slice: pheromone routing (INITIALIZATION SHIPPED; next: selection consumption + decay job)
+### 14.15.10 Slice: pheromone routing (INITIALIZATION + SELECTION CONSUMPTION SHIPPED; next: worker-side strategy honor + decay tuning)
 
 the operator's framing: "Ich komme ja aus den Routing Algorithmen" — routing as the
 mental model for mesh coordination. Synthesis of AMRO-S (arXiv 2603.12933),
@@ -1614,6 +1614,22 @@ derived from that table, not guessed:
 - unsure->external fallback (ReAct signal): an agent emitting the unsure
   marker deposits tau on the escalate edge, not on its own role edge, so
   repeated unsure behaviour converges routing toward B.
+
+**Selection consumption (BUILT 2026-11-16):** the orchestrator now READS the
+field. `Orchestrator._select_strategy` runs `route_strategy` against the live
+pheromone KV entries at task start and re-selects on every REVISE (the failed
+edge becomes the escalation floor, so pheromone never re-picks a strategy that
+just failed); the chosen edge is stamped into `TaskSnapshot.routing_edge`
+(history event `route.strategy`) and rides the dispatch payload as
+`strategy`. Deposits now land on the edge the task actually ran
+(`routing_edge`), not always on LIVE_EDGE. Settings: `pheromone_select`
+(default on) + `pheromone_weak_planner` (planner-capacity discount at
+selection; deposits stay honest). Best effort end to end: an unavailable
+bucket leaves the default chain head in place. Tests:
+`tests/test_pheromone_select.py` (11). Still open: the worker pipeline does
+not yet HONOR a non-default edge (B = self-reflect loop stays a bench-arm
+concept; making it a worker pipeline mode is the next slice), and decay
+intervals need a live-tuning pass.
 
 Shipped (2026-11-15, initialization slice): `pheromone.py` implements the
 score tau^alpha * eta^beta with these exact constants, the 24-cell rescue

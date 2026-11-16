@@ -701,7 +701,9 @@ class TaskSnapshot(BaseModel):
     # model_override so a rotated coder does not leak into the next planner
     # hop; a human retry intent keeps winning (rotation never overwrites it).
     model_overrides: dict[str, str] = Field(default_factory=dict)
-    # T4 (model-routing-visible): role -> "node:model" for every executed
+    # 14.15.10 selection consumption: strategy edge the orchestrator picked
+    # for this task from the pheromone field ("" = default chain head).
+    routing_edge: str = ""
     # step, recorded from the worker's result payloads. Shows which model
     # actually handled each pipeline stage.
     route: dict[str, str] = Field(default_factory=dict)
