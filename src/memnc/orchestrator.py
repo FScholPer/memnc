@@ -13,6 +13,7 @@ from .acl import check_registry_write
 from .api import ApiServer
 from .bus import Bus
 from .config import Settings, get_settings
+from .failclass import MODEL_LEVEL_KINDS, classify_failure
 from .fsm import Event, done_block_reason, transition
 from .fsutil import apply_artifacts
 from .observations import TaskObservation, observation_from_snapshot
@@ -599,6 +600,11 @@ class Orchestrator:
                 "executed_on": envelope.node,
             },
         )
+        if not event.ok and envelope.role is not None:
+            # 15.4.3 error-aware retry: rotate the failed role to another
+            # advertised model on a model-level failure, BEFORE _apply
+            # re-dispatches the retry.
+            await self._maybe_rotate_model(snapshot, envelope.role, payload, event.reason)
         await self._apply(snapshot, event)
         if event.type == "ask":  # M16 mesh-clarify: consult peers first
             await clarify.start(self.bus, self.settings, snapshot)
@@ -681,6 +687,62 @@ class Orchestrator:
         )
 
     # -- transitions -------------------------------------------------------
+    async def _maybe_rotate_model(
+        self,
+        snapshot: TaskSnapshot,
+        role: Role,
+        payload: ResultPayload,
+        error_reason: str,
+    ) -> None:
+        """15.4.3 error-aware retry: rotate a failed role's model.
+
+        A model-level failure (timeout / 5xx / invalid output) must not
+        re-pick the same broken model. Picks the first other advertised
+        model for the role from the live roster and stamps it into
+        ``snapshot.model_overrides[role]``; the dispatch payload prefers it
+        over the task-wide override. Best-effort: roster unavailability or
+        no alternative simply keeps the normal retry path.
+        """
+        if not self.settings.model_rotate_on_fail:
+            return
+        if snapshot.attempt >= self.settings.max_attempts:
+            return  # no retry will happen
+        kind = classify_failure(error_reason or payload.error)
+        if kind not in MODEL_LEVEL_KINDS:
+            return
+        existing = snapshot.model_overrides.get(role.value) or snapshot.model_override
+        if existing:
+            return  # a human/intent override wins; never second-guess it
+        failed = payload.model or (snapshot.route.get(role.value, "").split(":")[-1] or "")
+        try:
+            nodes = await self.bus.list_nodes()
+        except Exception:  # noqa: BLE001 - rotation is best effort
+            return
+        candidates: list[str] = []
+        for node in nodes:
+            if node.paused or role.value not in node.roles:
+                continue
+            for model in node.models:
+                if model != failed and model not in candidates:
+                    candidates.append(model)
+        if not candidates:
+            snapshot.record(
+                "model.rotate",
+                f"no alternative for {role.value} (was {failed or 'unknown'}, {kind})",
+            )
+            return
+        pick = candidates[0]
+        snapshot.model_overrides[role.value] = pick
+        snapshot.record(
+            "model.rotate",
+            f"{role.value}: {failed or 'unknown'} -> {pick} ({kind})",
+        )
+        log.info(
+            "model rotated after %s failure",
+            kind,
+            extra={"task_id": snapshot.task_id, "role": role.value, "from": failed, "to": pick},
+        )
+
     async def _apply(self, snapshot: TaskSnapshot, event: Event) -> None:
         result = transition(
             snapshot.state,
@@ -891,7 +953,11 @@ class Orchestrator:
                 "role": role.value,
                 "prefer_node": snapshot.prefer_node,
                 "harness": snapshot.harness,
-                "model_override": snapshot.model_override,
+                # 15.4.3: a rotated role model (error-aware retry) wins over
+                # the task-wide override for THIS role only.
+                "model_override": (
+                    snapshot.model_overrides.get(role.value) or snapshot.model_override
+                ),
                 # P4 slice 2: mesh code fingerprint — stale workers refuse.
                 "mesh_version": code_version(),
             },

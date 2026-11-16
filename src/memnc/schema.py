@@ -696,6 +696,11 @@ class TaskSnapshot(BaseModel):
     # Retry-with-intent: model set by a human retry command; workers use it
     # instead of their role default for every re-dispatch of this snapshot.
     model_override: str = ""
+    # 15.4.3 error-aware retry: per-role model rotation after a model-level
+    # failure ("coder" -> model). Dispatch prefers this over the task-wide
+    # model_override so a rotated coder does not leak into the next planner
+    # hop; a human retry intent keeps winning (rotation never overwrites it).
+    model_overrides: dict[str, str] = Field(default_factory=dict)
     # T4 (model-routing-visible): role -> "node:model" for every executed
     # step, recorded from the worker's result payloads. Shows which model
     # actually handled each pipeline stage.

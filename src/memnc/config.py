@@ -170,6 +170,12 @@ class Settings(BaseSettings):
     # with the check output as the issue text. No-op when no plan step
     # carries parseable criteria.
     acceptance_gate: bool = True
+
+    # 15.4.3 error-aware retry: on a model-level failure (timeout / 5xx /
+    # invalid output) the orchestrator rotates the failed role to another
+    # advertised model from the roster instead of re-picking the broken one.
+    # Human retry intent (model_override) always wins.
+    model_rotate_on_fail: bool = True
     # Ship-gate V2 (docs/design-ship-gate.md): mechanical deliverable
     # checks, opt-in like done_requires_activity. 0 = check off.
     verify_min_lines: int = 0
