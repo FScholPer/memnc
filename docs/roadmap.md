@@ -1655,7 +1655,7 @@ self-reflect edge instead of a success/failure on the acting edge, so
 repeated unsure behaviour converges routing toward B. Still open: an arm P
 full-run measurement.
 
-## 15.4 OpenCode harness (design note, 2026-11-15, not yet implemented)
+## 15.4 OpenCode harness (BUILT 2026-11-15, commit 7765404)
 
 Motivation: node-c now runs opencode 1.19.5 against the local ollama
 27b coder (`mannix/qwen3.6-27b-a3b-coder:CD-IQ4_K_M`), which DOES emit native
@@ -1709,7 +1709,7 @@ Open questions for the live run (answer after first real handoff):
   900 s default should hold, but the worker-level timeout for coder tasks on
   node-c may need to rise to 1200 s.
 
-### 15.4.1 opencode INSIDE the worker container (design note, 2026-11-15, before coding)
+### 15.4.1 opencode INSIDE the worker container (BUILT 2026-11-15, commit 31bc41d)
 
 Gap found after the image rebuild (7765404 on node-c): the worker container
 knows the opencode *harness* (`known_harnesses()` = inproc/opencode/pi), but
@@ -1781,7 +1781,7 @@ Fix, minimal and reversible (all of it maco-side, no repo change):
 Not done on purpose: no leaf-node config, no per-node nkeys yet (H4 stays a
 follow-up; both sides still run the dev token on the LAN).
 
-### 15.4.3 Durable tasks instead of one-shot (design note, 2026-11-15, before coding)
+### 15.4.3 Durable tasks instead of one-shot (design note; slice 1 error-aware retry BUILT)
 
 Operator verdict after watching four TTS-task attempts die on a remote node: the
 one-shot task model is bad (repeated one-shotting underperforms).
@@ -1807,11 +1807,27 @@ Evidence from 2026-11-15 (task ids `1a1dfb65`, `1a1dfc37`, `1a1dfc47`,
    retried on the same broken route — the roster knew `[27b, 7b]` for
    planner but the round kept choosing the model that cannot do the job.
 
-Design direction (not implemented yet):
+Design direction (slice 1 - error-aware retry - SHIPPED; checkpoint and
+workspace-continuity slices still open):
 
-- **Checkpoint/restart:** each attempt persists a short attempt-journal
-  (plan JSON, files touched, last completed stage) into the task snapshot;
-  a retry resumes from the last completed stage instead of restarting.
+- **Error-aware retry (BUILT):** `src/memnc/failclass.py` classifies a
+  step failure as `timeout` / `server` / `invalid_output` / `unknown`
+  (timeout wins over the others). On a model-level failure with retry
+  attempts left, the orchestrator rotates the failed role to the first
+  other advertised model from the live roster
+  (`Orchestrator._maybe_rotate_model`) before the retry re-dispatches;
+  `TaskSnapshot.model_overrides` (per role) is preferred in the dispatch
+  payload over the task-wide `model_override` so a rotated coder does not
+  leak into the next planner hop. A human retry intent (model_override)
+  always wins, rotation never second-guesses it. Best-effort: no roster,
+  no alternative, or an unknown executed model just records a
+  `model.rotate` history event and keeps the normal retry path. Setting
+  `model_rotate_on_fail` (default ON; `MODEL_ROTATE_ON_FAIL=0` disables).
+  Tests: `tests/test_error_retry.py`.
+- **Checkpoint/restart (design, not implemented):** each attempt persists
+  a short attempt-journal (plan JSON, files touched, last completed stage)
+  into the task snapshot; a retry resumes from the last completed stage
+  instead of restarting.
 - **Workspace continuity:** the task workspace (already a mounted volume)
   becomes the source of truth; a retry is told "the workspace exists, list
   it before you plan" instead of re-deriving state.
