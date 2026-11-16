@@ -75,6 +75,9 @@ x-mesh-service: &mesh-service
     - ALL
   volumes:
     - ./workspace:/workspace
+    # T0 quick-win: experience store lives under /app/data (relative
+    # EXPERIENCE_STORE_PATH) — bind rw, containers are read_only otherwise.
+    - ./data:/app/data
     # H4: per-node NKey seeds live here (secrets/<node>.nk, mode 0600,
     # never committed). Point NATS_NKEYS_SEED at /secrets/<node>.nk.
     - ./secrets:/secrets:ro
