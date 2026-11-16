@@ -149,6 +149,35 @@ done
 echo "e2e: task DONE"
 VERDICT="$(snapshot_field "$SNAPSHOT" "(d.get('critique') or {}).get('summary','')")"
 
+# --- T9 evidence: model-management trail --------------------------------------
+# After DONE, scan the orchestrator (and, if running, model_manager) logs for
+# the T3-T8 trail: health announces, alloc claim, intent load/drain timing.
+# Failure criteria per plan (2026-11-16 T9): planner timeout, already_empty,
+# VRAM timeout - any of these in the logs during the run = evidence FAIL.
+# Best-effort: missing logs only warn, never flip a verified DONE to FAIL.
+if [ "${E2E_SKIP_T9:-0}" != "1" ]; then
+    echo "e2e: T9 evidence scan"
+    LOGS="$(docker compose logs --since "${TIMEOUT}s" orchestrator 2>/dev/null || true)"
+    MM_LOGS="$(journalctl --user -u memnc-model-manager --since "-${TIMEOUT} seconds" --no-pager 2>/dev/null || true)"
+    trail() { # $1 = label, $2 = grep pattern
+        local hits
+        hits="$(printf '%s\n%s' "$LOGS" "$MM_LOGS" | grep -iE "$2" | tail -3 || true)"
+        if [ -n "$hits" ]; then
+            echo "e2e: T9 $1:"; printf '%s\n' "$hits" | sed 's/^/e2e:   /'
+        else
+            echo "e2e: T9 $1: none found (warn)"
+        fi
+    }
+    trail "health announces"  "health"
+    trail "alloc claim"       "alloc"
+    trail "intent load/drain" "intent|load.*ms|drain"
+    BAD_HITS="$(printf '%s\n%s' "$LOGS" "$MM_LOGS" | grep -icE "planner.{0,20}timeout|already_empty|vram.{0,20}timeout" || true)"
+    if [ "$BAD_HITS" -gt 0 ]; then
+        fail "T9 evidence: planner timeout / already_empty / VRAM timeout in logs (${BAD_HITS} hits)" 5
+    fi
+    echo "e2e: T9 evidence clean (no planner-timeout/already_empty/vram-timeout)"
+fi
+
 # --- artifact verification -----------------------------------------------------
 # Pick the artifact: explicit --artifact, else the newest .py in workspace/.
 CANDIDATE="${ARTIFACT}"
