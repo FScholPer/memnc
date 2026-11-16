@@ -2039,3 +2039,131 @@ right now") is exposed as an MCP resource that the mesh roster
 subscribes to, model lifecycle stays MCP tools, and federation means
 aggregating the per-node MCP registries — no central proxy, no custom
 HTTP API on top.
+
+# 16. Docs cleanup 2026-11-16 — absorbed design notes
+
+Per the operator's cleanup decision the repo keeps only `docs/plan.md` and
+`docs/roadmap.md`. The design notes below were distilled into this section
+before deletion; every deleted file remains recoverable in git history
+(`git log --diff-filter=D -- docs/`).
+
+## 16.1 design-backlog-dep-resolution.md (BUILT 2026-11-16, commit 367bee4)
+
+Backlog deps referencing MESH task ids resolve via a terminal-state checker:
+`next_claimable(claimant, dep_checker=...)`; the driver passes
+`_mesh_dep_checker(settings)` (registry snapshot per cycle). Rationale: a
+mesh-id dep expresses ordering intent, not a success gate — terminal-failed
+mesh attempts are followed by backlog strong-retries that carry the work
+forward; blocking on them deadlocked the driver (observed 2026-11-16, 4
+planned entries idle for hours). Unknown dep ids (neither store) stay
+blocked, conservative. Follow-ups: root-cause intermittent
+`driver error: nats: no keys found`; clean old night/smoke entries from the
+backlog.
+
+## 16.2 design-ship-gate.md (BUILT — ship-gate V2)
+
+Observed 4x on 2026-11-16: tasks reach DONE with stub deliverables (418-byte
+stubs passed the missing-file gate; the LLM critic approves narratives
+without evidence). Gate is mechanical, in the orchestrator result hook
+(`_on_result`/`_handle_result`, covers worker self-pipeline too): worker
+stamps `artifact_lines` (non-blank lines, -1 missing) next to
+`artifact_sizes`; new opt-in settings `verify_min_lines` /
+`verify_min_files` (0 = off); failure is a mechanical refusal with file
+names and measured numbers. Out of scope (follow-ups): branch-push
+verification via `git ls-remote` (needs creds in worker), running referenced
+tests in the workspace (sandbox risk). Rollout on node-a:
+`VERIFY_MIN_LINES=20`.
+
+## 16.3 design-arm-c2d.md (arm D — adversarial refinement mesh)
+
+Baseline (hard tier, 2026-11-15): A 6/8 @ ~610 tok; B (self-reflect) 8/8 @
+~2144; C (planner+coder+critic) 6/8 @ ~4369 — 7.2x A's cost for zero gain
+over B. Arm D proposal: D1 = adversarial single round — critic MUST produce
+a concrete counterexample (input/edge/line) or an explicit
+tried-X-Y-Z list; agreeability without evidence rejects the critique itself;
+max 2 rounds; cost class ~B (1600-2200 tok predicted). D2 = TalkHier
+evaluator split (k=2 single-criterion evaluators + supervisor with explicit
+merge, no summarization-by-vote), only if D1 < B, disqualified above 3000
+tok/task mean. D3 = structured tuples + plan-in-KV (zero extra calls, ships
+with D1). Qualification: D1 >= 7/8 and < 3000 tok; becomes default if it
+matches B (>= 8/8) at <= 1.2x B cost; if D2 also < B, mesh-as-refiner is
+DEAD for this task class — keep mesh only as supervisor-of-one (14.15.3)
+and route the difference into GEPA prompt evolution (15.3 item 4). Evidence
+sources: Ultracode (adversarial refutation), non-cooperative poetry
+(deviate step vs homogenization), TalkHier (background tuples -8.9pp,
+k-evaluators -11.1pp), Codacus (planner = biggest model), ReAct (escalate
+on unsure). A variant must rescue at least one of A's two hard failures
+(rate_limiter, dijkstra) to count as progress.
+
+## 16.4 design-message-tuple.md (TalkHop communication — BUILT)
+
+TalkHier tuples: every hop carries (Message, Background, IntermediateOutput)
+instead of re-derived prose. `Background` = {task, context, plan,
+assumptions}, persisted once per hop in workflow_state under companion key
+`background.<task_id>` (best-effort on submit + every planner hop);
+`intermediate_output` is NOT persisted — lives only in the envelope payload.
+`build_user_prompt` gains labeled MESSAGE / BACKGROUND / INTERMEDIATE OUTPUT
+sections behind `Settings.tuple_prompts` (default OFF; enabled only together
+with arm D1). Workers without a tuple fall back to prose; arm C behavior is
+byte-identical when off. Zero extra model calls.
+
+## 16.5 design-discuss-harness.md (14.14 item 4 — BUILT with tests)
+
+Multi-model debate as a coder harness; the PLAN is the debated object, the
+product contract unchanged. Phases: Propose (every model in
+`discuss_models`, parallel, per-call timeouts) -> Critique (one round,
+failures skipped) -> Judge (`judge_model` returns `WINNER: <model>`;
+unparseable output falls back deterministically to the first valid
+proposal) -> Execute (`ToolLoopHarness` on the winner; summary prefixed
+`[discuss] winner=<model>; ...`). Empty `discuss_models` degenerates to
+`[model_coder]` (documented, tested). Cost: 2K+1 extra calls vs one — for
+hard tasks only, not a default. Guardrails: no new authority path
+(proposals/critiques are data, never executed); shared `coder_timeout_s`
+budget; no pytest.mark decorators (repo content-filter rule).
+
+## 16.6 design-learned-verifier.md (Flow-DPO step 2 — design, not built)
+
+Why: deterministic checkers exist only for bench tasks; live verify-gate
+relies on the critic alone (fabrication incident 2026-11-15: critic
+approved an empty result). V1 (buildable now): cheap linear scorer —
+features from the files dict (file count, bytes, lines, AST-parse flag,
+comment fraction, duplicate ratio, placeholder detection: TODO/pass/empty/
+fabricated-metric constants), logistic regression, pure-python optimizer,
+weights as JSON artifact, `verify(files) -> score`. Honest scope: catches
+SHAPE failures (fabrication), never semantic wrongness — complements, never
+replaces, the checkers. V2: LoRA verifier on the shared base (Flow-DPO real
+step, rung toward growing-LoRA), blocked on user compute approval + a
+`record_solutions=True` hard-tier run (current 120-rep run has 0 recorded
+solutions). Non-goals: no verifier output gates the bench loop (leakage
+rule); no downloads without explicit approval; no sklearn/torch for V1.
+
+## 16.7 docs/experience.md (Erfahrungsspeicher — folded into this file)
+
+Was the curated "what we know about our models" store (the operator's framing
+2026-11-14: shared Erfahrungspeicher — which models are good at what, which
+task types to route where, which character traits emerge). Update rule:
+every bench run / notable live task appends or amends an entry, evidence
+required, contradicted entries corrected never deleted. Key entries
+(2026-11-14, hypothesis unless noted):
+- qwen2.5-coder:32b (coder, node-a): good at end-to-end coding through the
+  debate loop (night3 live proof). 
+- qwen2.5-coder:7b (planner, node-c): one "no JSON object found" failure
+  (n=1); planning only, never coding.
+- critic (7b, debate loop): rejects correct code — hallucinated blockers
+  while deterministic checks passed; approves almost everything on
+  proof-of-concept tasks (2 revisions over 40 live tasks); sycophantic
+  under pressure (matches Du et al. 2023). Consequence: deterministic
+  checks passing override critic rejection (worker.py ~1114).
+Two layers: this roadmap file (distilled, versioned) + KV pheromones
+(14.15.10, numeric hot layer). Full original file: git history.
+
+## 16.8 One-line records (deleted, recoverable in git history)
+
+- docs/architecture.md, docs/protocol.md, docs/operations.md,
+  docs/recovery.md, docs/mesh-api-concept.md, docs/p2b_design.md —
+  architectural/operational reference docs; superseded by plan.md +
+  roadmap.md per cleanup decision.
+- docs/bench/report-{easy-smoke,medium,hard}-2026-11-14.md,
+  report-full-2026-11-15.md — seeded bench results (120-row full run:
+  A 82.5% @ 609 tok/task, CIs and per-tier tables inside). Durable numbers
+  live in section 15 and the experience notes above.
