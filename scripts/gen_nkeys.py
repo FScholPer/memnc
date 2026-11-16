@@ -69,11 +69,33 @@ def _user_block(pub: str, pubs: list[str], subs: list[str]) -> str:
 _ORCH_PUB = [
     "mesh.>",  # the orchestrator drives the protocol subjects
     "$JS.>",
+    "$KV.*.>",  # KV puts publish to $KV.<bucket>.<key>
+    "$kv.*.>",
+    "_INBOX.>",  # request/reply answers go to the caller's inbox
+]
+
+# meshctl / operator tooling: submit tasks, control commands, ledger reads.
+_OP_PUB = [
+    "mesh.task.submit",
+    "mesh.task.submit.>",
+    "mesh.control",
+    "mesh.ledger",
+    "$JS.>",  # KV reads go through the JS API
+    "_INBOX.>",
+    "$KV.*.>",
+        "$kv.*.>",
+]
+_OP_SUB = [
+    "mesh.task.*.events",
+    "_INBOX.>",
+    "$KV.>",
+        "$kv.>",
 ]
 _ORCH_SUB = [
     "mesh.>",
     "mem.>",
     "$KV.>",
+        "$kv.>",
     "_INBOX.>",
 ]
 
@@ -87,14 +109,17 @@ def _node_pubs(node: str) -> list[str]:
         f"mesh.node.{node}.>",  # own heartbeat + node telemetry
         "mesh.task.*.events",  # append to task event streams
         "mesh.agent.*.result",  # role results (role is payload, not transport)
+        "mesh.agent.work",  # SUBJECT_AGENT_WORK: adapter work loop egress
         "mesh.bid.*.*",  # SUBJECT_BID = mesh.bid.{task_id}.{step_id}
         "mesh.ledger",  # M11 claim CAS
         "mesh.registry.register",
         "mesh.registry.withdraw",
         "mesh.model.decision",  # T-pull votes
         "mem.agent.*.work",  # agent inbox replies (agent_id unknown at config time)
+        "_INBOX.>",  # request/reply answers go to the caller's inbox
         "$JS.>",  # JetStream API calls
-        "$KV.*.>",  # KV publishes go to $KV.<bucket>.<key>, not $JS.API
+        "$KV.*.>",
+        "$kv.*.>",  # KV publishes go to $KV.<bucket>.<key>, not $JS.API
     ]
 
 
@@ -102,10 +127,12 @@ def _node_subs(node: str) -> list[str]:
     return [
         "mesh.task.>",  # tasks are broadcast/fan-out to all workers
         "mesh.agent.*.cmd",
+        "mesh.agent.work",  # SUBJECT_AGENT_WORK: adapter work loop ingress
         "mesh.auction.*.*",
         f"mesh.node.{node}.>",
         "mem.agent.*.work",
         "$KV.>",
+        "$kv.>",
         "_INBOX.>",
     ]
 
@@ -119,6 +146,8 @@ def generate_config(
 
     _, orch_pub = _generate_user_nkey(secrets_dir, orchestrator, rotate)
     entries.append(_user_block(orch_pub, _ORCH_PUB, _ORCH_SUB))
+    _, op_pub = _generate_user_nkey(secrets_dir, "operator", rotate)
+    entries.append(_user_block(op_pub, _OP_PUB, _OP_SUB))
     for node in nodes:
         _, pub = _generate_user_nkey(secrets_dir, node, rotate)
         entries.append(_user_block(pub, _node_pubs(node), _node_subs(node)))
@@ -135,7 +164,8 @@ def generate_config(
         # container-internal loopback here would break the mapping.
         "http: 0.0.0.0:8222\n"
         "jetstream: {\n"
-        "  store_dir: /data\n"
+        # NOTE: no store_dir here — the container start uses -sd /data;
+        # a duplicate store_dir makes nats-server refuse to start.
         "}\n"
         "authorization: {\n"
         "  users: [\n" + "\n".join(entries) + "\n  ]\n"

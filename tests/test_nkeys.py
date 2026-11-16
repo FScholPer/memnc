@@ -56,7 +56,18 @@ class TestGenerator:
     def test_conf_has_one_entry_per_user(self, tmp_path: Path):
         generate_config("alpha", ["node-b", "node-c"], tmp_path)
         conf = (tmp_path / "nats.conf").read_text()
-        assert conf.count("nkey:") == 3
+        # orchestrator + operator + 2 nodes
+        assert conf.count("nkey:") == 4
+
+    def test_operator_user_scopes(self, tmp_path: Path):
+        generate_config("alpha", ["node-b"], tmp_path)
+        conf = (tmp_path / "nats.conf").read_text()
+        # operator block: sits between orchestrator (1st) and node (3rd)
+        op_part = conf.split("nkey:")[2].split("nkey:")[0]
+        assert "mesh.task.submit" in op_part
+        assert "mesh.control" in op_part
+        # operator must NOT get the blanket control plane
+        assert "mesh.>" not in op_part
 
     def test_node_scopes_match_schema_subjects(self, tmp_path: Path):
         """Worker egress must cover the subjects schema.py actually uses."""
