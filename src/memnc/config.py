@@ -187,6 +187,12 @@ class Settings(BaseSettings):
     # fraction of accumulated pheromone that evaporates per interval.
     pheromone_decay_interval_s: int = 3600
     pheromone_rho: float = 0.1
+    # 14.15.10 selection consumption: consult the pheromone field when a task
+    # starts (and re-select after a failed verify) so measured success/cost
+    # data, not config, picks the strategy edge. weak_planner discounts
+    # planner-heavy edges while no planner-grade model is registered.
+    pheromone_select: bool = True
+    pheromone_weak_planner: bool = True
 
     # inference (external runtime)
     inference_provider: Literal["ollama", "openai"] = "ollama"

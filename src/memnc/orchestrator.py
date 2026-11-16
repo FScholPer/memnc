@@ -17,6 +17,7 @@ from .failclass import MODEL_LEVEL_KINDS, classify_failure
 from .fsm import Event, done_block_reason, transition
 from .fsutil import apply_artifacts
 from .observations import TaskObservation, observation_from_snapshot
+from .pheromone import route_strategy, task_type_from_prompt
 from .schema import (
     SUBJECT_CMD,
     SUBJECT_CONTROL,
@@ -196,6 +197,7 @@ class Orchestrator:
             # (bus.try_claim); _timeout_loop then dispatches claimed ones.
             await self.bus.emit_event(snapshot, "task.claimable", "waiting for claim")
         else:
+            await self._select_strategy(snapshot)
             await self._apply(snapshot, Event("start"))
         await self._maybe_request_model(snapshot)
         return snapshot
@@ -863,7 +865,35 @@ class Orchestrator:
                 )
 
         if result.state is TaskState.REVISE:
+            # 14.15.10: a failed verify is a failed edge - re-select so
+            # pheromone never re-picks the strategy that just failed.
+            await self._select_strategy(snapshot, failed_edge=snapshot.routing_edge)
             await self._apply(snapshot, Event("start"))
+
+    async def _select_strategy(self, snapshot: TaskSnapshot, failed_edge: str = "") -> None:
+        """14.15.10 selection consumption: pick the strategy edge.
+
+        Reads the live pheromone field and runs route_strategy under the
+        escalation floor: pheromone may only raise the choice above the
+        floor, never re-pick the edge that just failed. Best effort — an
+        unavailable bucket leaves the default chain head in place.
+        """
+        if not self.settings.pheromone_select:
+            return
+        try:
+            entries = await self.bus.pheromone_entries()
+        except Exception:  # noqa: BLE001 - selection is best effort
+            return
+        edge = route_strategy(
+            entries,
+            task_type_from_prompt(snapshot.task),
+            failed_edge=failed_edge or None,
+            weak_planner=self.settings.pheromone_weak_planner,
+        )
+        if edge == snapshot.routing_edge:
+            return
+        snapshot.routing_edge = edge
+        snapshot.record("route.strategy", edge)
 
     async def _deposit_pheromone(self, snapshot: TaskSnapshot) -> None:
         """14.15.10: fold the terminal outcome into the pheromone field.
@@ -879,7 +909,9 @@ class Orchestrator:
 
         try:
             outcome = "success" if snapshot.state.value.lower() == "done" else "failure"
-            edge = LIVE_EDGE
+            # Selection consumption (14.15.10): deposit on the edge the task
+            # actually ran; LIVE_EDGE only when selection never picked one.
+            edge = getattr(snapshot, "routing_edge", "") or LIVE_EDGE
             critique = getattr(snapshot, "critique", None)
             critique_summary = critique.summary if critique else ""
             if unsure_signal(getattr(snapshot, "error", None), critique_summary):
@@ -960,6 +992,9 @@ class Orchestrator:
                 ),
                 # P4 slice 2: mesh code fingerprint — stale workers refuse.
                 "mesh_version": code_version(),
+                # 14.15.10: strategy edge chosen from the pheromone field
+                # ("" = orchestrator never selected / selection disabled).
+                "strategy": snapshot.routing_edge,
             },
         )
         if self.settings.tuple_prompts:
