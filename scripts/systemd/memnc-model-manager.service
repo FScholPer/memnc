@@ -1,0 +1,16 @@
+[Unit]
+Description=memnc model_manager (health publish + intent server, T8)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/memnc
+ExecStart=%h/memnc/scripts/model-manager.sh
+Restart=on-failure
+RestartSec=10
+# T3 design constraint: the health loop never crashes on publish errors
+# (faults degrade to zero values), and intent faults answer {"ok": false}.
+# Killing the process only loses announces until the next 5 s interval.
+
+[Install]
+WantedBy=default.target
