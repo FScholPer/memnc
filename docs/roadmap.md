@@ -1098,6 +1098,8 @@ a8cd309, KV-revision CAS as lock). `src/memnc/backlog.py`:
   mesh (`TaskSubmission` claimable), mark `mesh_task_id`, watch to a
   terminal event, then `mark()` done/failed. Without `--once` it loops.
 - `backlog-reset <id>`: re-plan an entry for debugging.
+- `backlog-del <id> [--force]`: KV tombstone; refuses claimed entries
+  without `--force` (driver mid-task protection).
 
 **Two live-bugs found and fixed during the smoke:**
 1. Core-NATS subscribe misses fast tasks: the mesh terminal event can be

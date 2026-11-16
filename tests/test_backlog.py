@@ -3,6 +3,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from nats.js.errors import NotFoundError
 
 from memnc.backlog import (
@@ -46,6 +47,11 @@ class FakeKV:
 
     async def keys(self) -> list[str]:
         return sorted(self.data)
+
+    async def delete(self, key: str) -> None:
+        if key not in self.data:
+            raise NotFoundError()
+        del self.data[key]
 
 
 class FakeJS:
@@ -342,3 +348,36 @@ def test_claim_returns_task_with_harness():
     claimed = asyncio.run(store.claim(task.id, "drv"))
     assert claimed is not None
     assert claimed.harness == "pi"
+
+
+# -- delete -------------------------------------------------------------------
+
+def test_delete_done_entry():
+    store, js = _store()
+    task = asyncio.run(store.add("old work"))
+    assert asyncio.run(store.delete(task.id)) is True
+    assert asyncio.run(store.get(task.id)) is None
+    assert task.id not in js.kv.data
+
+
+def test_delete_missing_returns_false():
+    store, _ = _store()
+    assert asyncio.run(store.delete("b-nope")) is False
+
+
+def test_delete_refuses_claimed_entry():
+    store, _ = _store()
+    task = asyncio.run(store.add("in flight"))
+    asyncio.run(store.claim(task.id, "drv"))
+    with pytest.raises(ValueError, match="claimed"):
+        asyncio.run(store.delete(task.id))
+    # the entry survives a refused delete
+    assert asyncio.run(store.get(task.id)) is not None
+
+
+def test_delete_forced_claimed_entry():
+    store, _ = _store()
+    task = asyncio.run(store.add("in flight"))
+    asyncio.run(store.claim(task.id, "drv"))
+    assert asyncio.run(store.delete(task.id, force=True)) is True
+    assert asyncio.run(store.get(task.id)) is None

@@ -153,6 +153,22 @@ class BacklogStore:
             return None
         return BacklogTask.model_validate_json(entry.value)
 
+    async def delete(self, backlog_id: str, force: bool = False) -> bool:
+        """Delete a backlog entry (KV tombstone).
+
+        Refuses to delete a live (claimed) entry without ``force`` so a
+        driver that is mid-task never loses its work item silently.
+        Returns False when the id is unknown.
+        """
+        task = await self.get(backlog_id)
+        if task is None:
+            return False
+        if task.status == "claimed" and not force:
+            raise ValueError(f"{backlog_id} is claimed; delete with force=True to remove it")
+        kv = await self._ensure_kv()
+        await kv.delete(backlog_id)
+        return True
+
     async def list(self) -> list[BacklogTask]:
         """All backlog entries, oldest created_at first."""
         kv = await self._ensure_kv()

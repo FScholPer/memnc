@@ -896,6 +896,23 @@ async def cmd_backlog_reset(args: argparse.Namespace, settings: Settings) -> int
         await client.close()
 
 
+async def cmd_backlog_del(args: argparse.Namespace, settings: Settings) -> int:
+    client = await _connect(settings)
+    try:
+        store = await _backlog_store(client)
+        deleted = await store.delete(args.backlog_id, force=args.force)
+        if not deleted:
+            print("not found")
+            return 1
+        print(f"deleted {args.backlog_id}")
+        return 0
+    except ValueError as exc:
+        print(f"refused: {exc}")
+        return 1
+    finally:
+        await client.close()
+
+
 async def _maybe_wake_idle(
     get_store, settings: Settings, waker: WolWaker
 ) -> bool:
@@ -1189,6 +1206,15 @@ def build_parser() -> argparse.ArgumentParser:
     backlog_reset = subparsers.add_parser("backlog-reset", help="re-plan a backlog entry")
     backlog_reset.add_argument("backlog_id")
     backlog_reset.set_defaults(func=cmd_backlog_reset)
+
+    backlog_del = subparsers.add_parser(
+        "backlog-del", help="delete a backlog entry (tombstone)"
+    )
+    backlog_del.add_argument("backlog_id")
+    backlog_del.add_argument(
+        "--force", action="store_true", help="also delete claimed entries"
+    )
+    backlog_del.set_defaults(func=cmd_backlog_del)
 
     wol = subparsers.add_parser(
         "wol", help="send one Wake-on-LAN magic packet (P4: wake-on-backlog)"
