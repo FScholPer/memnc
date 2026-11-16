@@ -15,7 +15,15 @@ import json
 import signal
 from typing import IO, Any
 
-from memnc.schema import SUBJECT_HEALTH, Envelope, GpuHealth, Kind, ModelEntry, NodeHealth
+from memnc.schema import (
+    SUBJECT_HEALTH,
+    Envelope,
+    GpuHealth,
+    Kind,
+    ModelEntry,
+    ModelIntentOp,
+    NodeHealth,
+)
 from memnc.vram_probe import fetch_loaded_models, probe_vram  # noqa: F401
 
 MCP_TIMEOUT_S = 30.0
@@ -93,6 +101,90 @@ class ModelManager:
             pass
 
         return NodeHealth(node=self.node, gpu=gpu, models=models, queue_depth=queue_depth)
+
+    # -- T4: intents (load/unload/drain/ensure) → llauncher tools -----------
+
+    def handle_intent(
+        self,
+        op: ModelIntentOp,
+        model: str | None = None,
+        mcp: Any | None = None,
+        port: int | None = None,
+        default_port: int = 8080,
+    ) -> dict[str, Any]:
+        """Run one intent against llauncher MCP. Returns a result dict.
+
+        Errors are returned as {"ok": False, "reason": ...} — an intent
+        must never crash the model_manager process.
+        """
+        if mcp is None:
+            return {"ok": False, "op": op.value, "model": model, "reason": "no_mcp"}
+        try:
+            return self._run_intent(op, model, mcp, port, default_port)
+        except Exception as exc:  # noqa: BLE001 - intents must never crash
+            return {
+                "ok": False,
+                "op": op.value,
+                "model": model,
+                "reason": f"mcp_error: {exc}",
+            }
+
+    def _run_intent(
+        self,
+        op: ModelIntentOp,
+        model: str | None,
+        mcp: Any,
+        port: int | None,
+        default_port: int,
+    ) -> dict[str, Any]:
+        base: dict[str, Any] = {"ok": True, "op": op.value, "model": model}
+
+        if op is ModelIntentOp.DRAIN:
+            stopped: list[int] = []
+            for entry in self._running_models(mcp):
+                stopped.append(entry["status"]["port"])
+                mcp.call("stop_server", {"port": entry["status"]["port"]})
+            return {**base, "stopped_ports": stopped}
+
+        if not model:
+            return {**base, "ok": False, "reason": "bad_request"}
+
+        known = self._known_models(mcp)
+        if model not in known:
+            return {**base, "ok": False, "reason": "unknown_model"}
+
+        if op is ModelIntentOp.UNLOAD:
+            running = known[model]
+            if running is None:
+                return {**base, "reason": "not_running"}
+            mcp.call("stop_server", {"port": running["port"]})
+            return {**base, "stopped_port": running["port"]}
+
+        target_port = port or default_port
+        if op is ModelIntentOp.ENSURE:
+            mcp.call("validate_models", {"model_name": model})
+        mcp.call("start_server", {"model_name": model, "port": target_port})
+        return {**base, "started_port": target_port}
+
+    def _models_registry(self, mcp: Any) -> list[dict[str, Any]]:
+        doc = mcp.call("list_models") or {}
+        return doc.get("models", [])
+
+    def _running_models(self, mcp: Any) -> list[dict[str, Any]]:
+        return [
+            e for e in self._models_registry(mcp)
+            if e.get("status", {}).get("state") == "running"
+        ]
+
+    def _known_models(self, mcp: Any) -> dict[str, dict[str, Any] | None]:
+        """name → running status (with port) or None when stopped."""
+        known: dict[str, dict[str, Any] | None] = {}
+        for entry in self._models_registry(mcp):
+            status = entry.get("status", {})
+            name = entry.get("identification", {}).get("name")
+            if name:
+                known[name] = status if status.get("state") == "running" else None
+        return known
 
 
 class HealthPublisher:
