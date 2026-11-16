@@ -1094,6 +1094,19 @@ class Orchestrator:
 
     async def _dispatch(self, snapshot: TaskSnapshot, role: Role) -> None:
         timeout_s = self.settings.timeout_for(role)
+        # T7: best-effort planner allocation — claim a node for the role
+        # model via mesh.alloc.request and stamp it into the command.
+        alloc: dict | None = None
+        try:
+            model = (
+                snapshot.model_overrides.get(role.value)
+                or snapshot.model_override
+                or snapshot.needs.model
+            )
+            if model and snapshot.needs is not None and snapshot.needs.model:
+                alloc = await self._alloc_for(model, snapshot.task_id)
+        except Exception:  # noqa: BLE001 - allocation is best effort
+            log.debug("alloc for %s failed", role.value, exc_info=True)
         command = Envelope(
             task_id=snapshot.task_id,
             trace_id=snapshot.trace_id,
@@ -1123,8 +1136,10 @@ class Orchestrator:
                 # P4 slice 2: mesh code fingerprint — stale workers refuse.
                 "mesh_version": code_version(),
                 # 14.15.10: strategy edge chosen from the pheromone field
-                # ("" = orchestrator never selected / selection disabled).
+                # ("") = orchestrator never selected / selection disabled).
                 "strategy": snapshot.routing_edge,
+                # T7: planner allocation claim ({"model", "node"} | None).
+                "alloc": alloc,
             },
         )
         if self.settings.tuple_prompts:
@@ -1139,6 +1154,21 @@ class Orchestrator:
         await self.bus.put_snapshot(snapshot)
         await self.bus.publish_envelope(SUBJECT_CMD.format(role=role.value), command)
         await self.bus.emit_event(snapshot, "dispatch", f"{role.value} command {command.id}")
+
+    # -- T7: planner allocation client ---------------------------------------
+
+    async def _alloc_for(self, model: str, task_id: str) -> dict | None:
+        """Ask the allocator for a node for `model`; returns {model, node}."""
+        assert self.bus.nc is not None
+        response = await self.bus.nc.request(
+            SUBJECT_ALLOC,
+            json.dumps({"model": model, "task_id": task_id}).encode(),
+            timeout=5,
+        )
+        result = json.loads(response.data) or {}
+        if result.get("ok") and result.get("node"):
+            return {"model": model, "node": result["node"]}
+        return None
 
     # -- M10: fan-out (hive run_worker shape) -------------------------------
     async def _fanout(self, snapshot: TaskSnapshot) -> None:
