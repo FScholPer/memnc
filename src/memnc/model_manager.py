@@ -10,11 +10,12 @@ vram_probe numbers and Ollama /api/ps truth; it never crashes the node.
 
 from __future__ import annotations
 
+import asyncio
 import json
-import sys
+import signal
 from typing import IO, Any
 
-from memnc.schema import GpuHealth, ModelEntry, NodeHealth
+from memnc.schema import SUBJECT_HEALTH, Envelope, GpuHealth, Kind, ModelEntry, NodeHealth
 from memnc.vram_probe import fetch_loaded_models, probe_vram  # noqa: F401
 
 MCP_TIMEOUT_S = 30.0
@@ -94,9 +95,71 @@ class ModelManager:
         return NodeHealth(node=self.node, gpu=gpu, models=models, queue_depth=queue_depth)
 
 
-def main() -> int:  # pragma: no cover - wired up in T3 (NATS health loop)
-    """Placeholder entry: the publish loop arrives in T3."""
-    print("model_manager: publish loop arrives in T3", file=sys.stderr)
+class HealthPublisher:
+    """T3: publishes NodeHealth on mesh.node.health.<node> every interval.
+
+    Health must never crash the node: collect errors produce zeroed
+    numbers (still published) and the loop only exits on the stop event.
+    """
+
+    def __init__(self, manager: ModelManager, bus, interval_s: int = 5):
+        self.manager = manager
+        self.bus = bus
+        self.interval_s = interval_s
+
+    def _envelope(self, health: NodeHealth) -> Envelope:
+        task_id = f"health-{self.manager.node}"
+        return Envelope(
+            task_id=task_id,
+            trace_id=task_id,
+            kind=Kind.HEALTH,
+            node=self.manager.node,
+            payload=health.model_dump(),
+        )
+
+    async def run(self, stop: asyncio.Event) -> None:
+        while not stop.is_set():
+            health = await asyncio.to_thread(self.manager.collect_health)
+            try:
+                await self.bus.publish_envelope(
+                    SUBJECT_HEALTH.format(node=self.manager.node),
+                    self._envelope(health),
+                )
+            except Exception:  # noqa: BLE001 - publishing must not kill the loop
+                pass
+            if stop.is_set():
+                break
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=self.interval_s)
+            except TimeoutError:
+                pass
+
+
+def main() -> int:  # pragma: no cover - real process entry (T3)
+    """model_manager process: NATS health loop until SIGINT/SIGTERM."""
+    import asyncio
+
+    from memnc.bus import Bus
+    from memnc.config import Settings
+
+    async def _run() -> None:
+        settings = Settings()
+        bus = Bus(settings)
+        await bus.connect()
+        manager = ModelManager(
+            node=settings.node_name, base_url=settings.inference_base_url
+        )
+        publisher = HealthPublisher(
+            manager=manager, bus=bus, interval_s=settings.health_interval_s
+        )
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop.set)
+        await publisher.run(stop)
+        await bus.close()
+
+    asyncio.run(_run())
     return 0
 
 
