@@ -1,6 +1,6 @@
 """Observation deposit: the write unit of the mesh's experiential graph.
 
-Design origin: the operator's eclipse-score/mcp-servers `libs/score-context`
+Design origin: eclipse-score/mcp-servers `libs/score-context`
 (ContextDelta + Provenance) and `packages/context-discipline`
 (OutcomeRecord). Plan reference: docs/memnc-mesh-plan.md section 14.12.
 
