@@ -266,7 +266,7 @@ Deliberately left out: no cloud dependency (the bot runs locally, only the Teleg
 #
 ## 14.7 Outlook: model demand planning & LAN model sharing ()
 
-*Trigger:* the operator's idea — shuttle models back and forth between nodes so a model does not have to be loaded multiple times.
+*Trigger:* Design idea — shuttle models back and forth between nodes so a model does not have to be loaded multiple times.
 
 *Analysis:* two very different problems hide in this idea.
 
@@ -323,7 +323,7 @@ with memnc until the operator green-lights it.
 #
 ## 14.12 Graph-based experiential memory & stigmergic routing (PLANNED, )
 
-Origin: the operator's existing work in `eclipse-score/mcp-servers`
+Origin: Prior work in `eclipse-score/mcp-servers`
 (S-CORE APM monorepo) — the design is **already built there**, the mesh
 task is to port/adapt it, not to invent it. Verified against the repo:
 
@@ -1343,7 +1343,7 @@ Meta-Harness (2603.28052) and SkillDuet (2611.12109v2) into mesh vocabulary:
 6. Konsens-Protokoll direkt: agents agree directly — peer-to-peer voting
    over pitches in KV — no central FSM that decides alone.
 
-Gate (the operator, 2026-11-14): "Lass uns aber erst den Benchmark und die
+Gate (the operator): "Lass uns aber erst den Benchmark und die
 Evidenz aufsetzen" — do NOT implement routing before bench-report.md
 numbers exist. Initialize alpha/beta/tau0 from measured benchmark data,
 not guesses. Evidence and model profiles land in docs/experience.md
@@ -1351,7 +1351,7 @@ not guesses. Evidence and model profiles land in docs/experience.md
 
 ### 14.15.11 Slice: swarm-to-human legibility (PROPOSED 2026-11-14, discussion first)
 
-the operator's insight (2026-11-14): memnc analyzes model-to-model interaction, but the
+the operator's insight: memnc analyzes model-to-model interaction, but the
 real product interface is **swarm-to-human** — a human directing, observing and
 collaborating with the mesh. Kreative Mensch-Agenten-Kollaboration ist kaum im
 Mainstream angekommen; das Feld heisst in der Forschung Human-Swarm Interaction
@@ -1731,7 +1731,7 @@ Gap found after the image rebuild (7765404 on node-c): the worker container
 knows the opencode *harness* (`known_harnesses()` = inproc/opencode/pi), but
 the opencode *binary* is not in the image (`command -v opencode` -> nothing
 inside `memnc-worker-planner-1`). A `--harness opencode` task on node-c would
-fail at spawn. Host binary at /usr/bin/opencode (maco) does not help — the
+fail at spawn. Host binary at /usr/bin/opencode (node-c) does not help — the
 worker runs inside the container.
 
 Design, four pieces:
@@ -1770,23 +1770,23 @@ Discovered while the first routed task (`1a1df86c`, prefer_node=node-c) sat
 unclaimed in the backlog: the node-c `.env` is a verbatim copy of node-a's.
 Consequences, read off `docker inspect`:
 
-- maco's worker announces itself as `node-a-planner` (NODE_NAME=node-a +
+- node-c's worker announces itself as `node-a-planner` (NODE_NAME=node-a +
   role suffix) — same name as node-a's real worker. A mesh can't tell them
   apart, and `prefer_node=node-c` matches nobody.
-- maco's NATS_URL=nats://nats:4222 points at maco's OWN nats container, so
+- node-c's NATS_URL=nats://nats:4222 points at node-c's OWN nats container, so
   the two "halves" are two disjoint NATS islands. Tasks submitted on node-a
   can never be claimed on node-c — no routing, no mesh.
 - NODE_GPU/NODE_VRAM_GB on node-c still describe node-a's gpu-a.
 
-Fix, minimal and reversible (all of it maco-side, no repo change):
+Fix, minimal and reversible (all of it node-c-side, no repo change):
 
-1. maco `.env`: `NODE_NAME=node-c` (worker becomes node-c-planner),
+1. node-c `.env`: `NODE_NAME=node-c` (worker becomes node-c-planner),
    `NODE_GPU=gpu-b`, `NODE_VRAM_GB=16` (correct the copied metadata),
    and `NATS_URL=nats://<node-a-LAN-IP>:4222` — node-a's nats container
    already publishes 4222 on 0.0.0.0, same NATS_TOKEN=dev-token on both
    sides, so the shared token stays the mesh auth.
-2. maco's local nats container keeps running but goes idle; the compose file
-   stays untouched so a standalone maco stack remains possible.
+2. node-c's local nats container keeps running but goes idle; the compose file
+   stays untouched so a standalone node-c stack remains possible.
 3. `docker compose up -d` on node-c recreates worker+orchestrator against the
    shared bus. The two orchestrators then share one JetStream KV — expected
    to be fine (the mesh is designed for multi-node claim fan-out), watch the
@@ -2139,7 +2139,7 @@ rule); no downloads without explicit approval; no sklearn/torch for V1.
 
 ## 16.7 docs/experience.md (Erfahrungsspeicher — folded into this file)
 
-Was the curated "what we know about our models" store (the operator's framing
+Was the curated "what we know about our models" store (framing
 2026-11-14: shared Erfahrungspeicher — which models are good at what, which
 task types to route where, which character traits emerge). Update rule:
 every bench run / notable live task appends or amends an entry, evidence

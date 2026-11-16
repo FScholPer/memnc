@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     node_gpu: str = ""
     nats_url: str = "nats://127.0.0.1:4222"
     nats_token: str | None = None
-    # Topology (framework, not the operator's setup): nats_url accepts a
+    # Topology (framework, not any specific host setup): nats_url accepts a
     # comma-separated seed list ("nats://a:4222,nats://b:4222") — the
     # client round-robins/reconnects across it. kv_replicas follows the
     # deployment topology: 1 = solo/duo (single JetStream), 3 = mesh
