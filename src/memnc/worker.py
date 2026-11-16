@@ -23,6 +23,7 @@ from .harnesses import get_harness
 from .harnesses.workspace import changed_file_contents
 from .mcp.client import MCPClient
 from .observations import TaskObservation
+from .pheromone import SELF_REFLECT_EDGE
 from .roles import (
     CONSULT_SYSTEM_PROMPT,
     PROMPT_VERSION,
@@ -43,6 +44,7 @@ from .schema import (
     ConsultAnswer,
     ConsultRequest,
     CriticIssue,
+    CriticOutput,
     Envelope,
     FileArtifact,
     MessageTuple,
@@ -1034,6 +1036,17 @@ class Worker:
                 snapshot.record("start")
                 await self.bus.put_snapshot(snapshot)
                 await self.bus.emit_event(snapshot, "state.planning", "claimed")
+            # 14.15.10 worker-side strategy honor (arm-B edge): the raw task
+            # prompt IS the plan — the planner step is skipped and the
+            # pipeline runs coder + in-process self-critique instead of a
+            # separate critic claim.
+            if (
+                snapshot.state is TaskState.PLANNING
+                and snapshot.routing_edge == SELF_REFLECT_EDGE
+                and snapshot.plan is None
+            ):
+                snapshot.record("route.self_reflect", "planner skipped")
+                await self._apply_local(snapshot, Event("result", ok=True))
             role = Role(snapshot.next_role or self.role.value)
             envelope = Envelope(
                 task_id=snapshot.task_id,
@@ -1140,9 +1153,90 @@ class Worker:
                 await self._acceptance_gate(snapshot)
                 await self._verify_gate(snapshot)
                 event = Event("result", ok=True, approved=snapshot.critique.approved)
+        if (
+            envelope.role is Role.CODER
+            and result.ok
+            and event.type == "result"
+            and self._self_reflect_active(snapshot)
+        ):
+            # 14.15.10 worker-side strategy honor: arm-B runs its critique
+            # rounds in-process instead of claiming a critic. Move
+            # CODING -> CRITIQUE, keep the step unclaimable for the local
+            # round, then apply the verdict through the normal gates.
+            await self._apply_local(snapshot, Event("result", ok=True))
+            snapshot.claimable = False
+            snapshot.next_role = ""
+            event = await self._self_critique(snapshot)
         if envelope.node:
             await self.bus.emit_event(snapshot, "result.executed_on", envelope.node)
         await self._apply_local(snapshot, event)
+
+    def _self_reflect_active(self, snapshot: TaskSnapshot) -> bool:
+        """True when the orchestrator selected the self-reflect edge (arm B)."""
+        return getattr(snapshot, "routing_edge", "") == SELF_REFLECT_EDGE
+
+    async def _self_critique(self, snapshot: TaskSnapshot) -> Event:
+        """Arm-B mode: the coder model critiques its own output in-process.
+
+        Replaces the CRITIC claim with a local critique round (14.15.10
+        worker-side strategy honor). The verdict flows through the same
+        gates (acceptance, verify, reputation) as a claimed critic result;
+        the revision budget stays with the FSM (snapshot.max_revisions).
+        """
+        envelope = Envelope(
+            task_id=snapshot.task_id,
+            trace_id=snapshot.trace_id,
+            kind="command",
+            role=Role.CRITIC,
+            node=self.settings.node_name,
+            state=snapshot.state,
+            attempt=snapshot.attempt,
+            payload={
+                "task": snapshot.task,
+                "context": snapshot.context,
+                "plan": snapshot.plan.model_dump() if snapshot.plan else None,
+                "code": snapshot.code.model_dump() if snapshot.code else None,
+                "critique": snapshot.critique.model_dump() if snapshot.critique else None,
+                "revisions": snapshot.revisions,
+                "workspace_root": str(self.settings.workspace_root),
+                "role": Role.CRITIC.value,
+                "harness": snapshot.harness,
+                # arm-B semantics: the SAME model critiques its own output.
+                "model_override": self.settings.model_coder,
+            },
+        )
+        try:
+            timeout_s = float(self.settings.timeout_for(Role.CRITIC))
+            result = await asyncio.wait_for(self._run(envelope, snapshot), timeout=timeout_s + 5)
+        except TimeoutError:
+            return Event("result", ok=False, reason="self-critique timed out")
+        except Exception as exc:  # noqa: BLE001 - behave like a failed claim step
+            return Event("result", ok=False, reason=f"self-critique error: {exc}")
+        try:
+            output = CriticOutput.model_validate(result.output)
+            self._store_output(snapshot, Role.CRITIC, output)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("bad self-critique output: %s", exc)
+            return Event("result", ok=False, reason=f"invalid self-critique: {exc}")
+        critique = snapshot.critique
+        if critique is None:  # defensive: _store_output just stored it
+            return Event("result", ok=False, reason="self-critique stored no verdict")
+        # T7: same reputation path as a claimed critic verdict.
+        try:
+            rep = await self.bus.record_reputation(
+                self.settings.model_coder, critique.approved
+            )
+            if should_propose_retirement(rep, self.settings.retire_threshold):
+                await self._propose_retirement(self.settings.model_coder, rep)
+        except Exception:  # noqa: BLE001 - reputation is best effort
+            log.warning("reputation recording failed", exc_info=True)
+        await self._acceptance_gate(snapshot)
+        await self._verify_gate(snapshot)
+        snapshot.record("route.self_reflect", f"critique round {snapshot.revisions}")
+        await emit_debate(self.bus, snapshot, Role.CRITIC)
+        if critique.question:
+            return Event("ask", reason=critique.question, role=Role.CRITIC)
+        return Event("result", ok=True, approved=critique.approved)
 
     async def _deposit_pheromone(self, snapshot: TaskSnapshot) -> None:
         """15.3: worker-side pheromone deposit on the self-reflect edge.

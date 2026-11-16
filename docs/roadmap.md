@@ -2,6 +2,19 @@
 
 ## Built
 
+- **2026-11-16 — Worker-side strategy honor (14.15.10 selection consumption)**:
+  the worker-driven pipeline now HONORS a non-default routing edge. When the
+  orchestrator selected the self-reflect edge (`routing_edge == "B"`), the
+  claimed worker skips the planner step (the raw task prompt IS the plan,
+  `route.self_reflect` history event) and runs the arm-B loop in-process: the
+  coder model critiques its own output via the normal critic role with
+  `model_override = model_coder` (no critic claim, no extra round trip), the
+  verdict flows through the same gates (acceptance, verify, reputation) as a
+  claimed critic result, and the revision budget stays with the FSM
+  (`max_revisions`, default 3 = bench arm B). A self-critique question parks
+  for the human as usual. Default/other edges are untouched. Tests:
+  `tests/test_worker_self_reflect.py` (5).
+
 - **2026-11-16 — DiscussHarness (14.14 item 4)**: multi-model debate as a coder
   harness on the shared contract. Proposals are plain text (parallel, per-call
   timeouts), one critique round, judge returns `WINNER: <model>`, the winner is
@@ -1318,7 +1331,7 @@ Status (2026-11-14): stage 2 done — `memnc.bench.runner`:
     repo-own evidence for the single-agent>multi-structure finding;
     full seeded run (reps>=5) + raised inference timeout next.
 
-### 14.15.10 Slice: pheromone routing (INITIALIZATION + SELECTION CONSUMPTION SHIPPED; next: worker-side strategy honor + decay tuning)
+### 14.15.10 Slice: pheromone routing (INITIALIZATION + SELECTION CONSUMPTION + WORKER-SIDE STRATEGY HONOR SHIPPED; next: decay tuning)
 
 the operator's framing: "Ich komme ja aus den Routing Algorithmen" — routing as the
 mental model for mesh coordination. Synthesis of AMRO-S (arXiv 2603.12933),
@@ -1626,10 +1639,13 @@ just failed); the chosen edge is stamped into `TaskSnapshot.routing_edge`
 (default on) + `pheromone_weak_planner` (planner-capacity discount at
 selection; deposits stay honest). Best effort end to end: an unavailable
 bucket leaves the default chain head in place. Tests:
-`tests/test_pheromone_select.py` (11). Still open: the worker pipeline does
-not yet HONOR a non-default edge (B = self-reflect loop stays a bench-arm
-concept; making it a worker pipeline mode is the next slice), and decay
-intervals need a live-tuning pass.
+`tests/test_pheromone_select.py` (11). **Worker-side honor (BUILT
+2026-11-16):** the worker-driven pipeline honors the self-reflect edge —
+planner step skipped (task prompt IS the plan), coder model critiques its own
+output in-process through the normal gates (acceptance/verify/reputation),
+revision budget stays with the FSM; see the Built entry and
+`tests/test_worker_self_reflect.py` (5). Still open: decay intervals need a
+live-tuning pass.
 
 Shipped (2026-11-15, initialization slice): `pheromone.py` implements the
 score tau^alpha * eta^beta with these exact constants, the 24-cell rescue
