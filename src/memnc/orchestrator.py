@@ -143,6 +143,14 @@ class Allocator:
         node = result.node or ""
         if node and size_mb:
             self._reserved_mb[node] = self._reserved_mb.get(node, 0.0) + size_mb
+        logging.getLogger(__name__).info(
+            "alloc claim: task=%s model=%s node=%s size_mb=%.0f reserved=%.0f",
+            task_id or "-",
+            result.model,
+            node,
+            size_mb,
+            self._reserved_mb.get(node, 0.0),
+        )
         return result
 
 

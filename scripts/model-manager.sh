@@ -14,7 +14,7 @@
 #   site-packages and produces misleading import errors.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/..")"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
 nats_token="$(awk -F= -v k=NATS_TOKEN '$1 == k {sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' "$REPO/.env")"
 export NATS_URL="${NATS_URL:-nats://127.0.0.1:4222}"
@@ -24,6 +24,9 @@ fi
 # NKey seed: the node's transport identity (T8). Default: this host's gpu
 # identity; override per node with MEMNC_NKEYS_SEED.
 export NATS_NKEYS_SEED="${MEMNC_NKEYS_SEED:-$REPO/secrets/$(hostname)-gpu.nk}"
-export NODE_NAME="${MEMNC_NODE_NAME:-$(hostname)}"
+export NODE_NAME="${MEMNC_NODE_NAME:-$(hostname)-gpu}"
+# Host-side process: container URL (host.docker.internal) is unreachable from
+# the host; loopback always works here. MEMNC_INFERENCE_BASE_URL overrides.
+export INFERENCE_BASE_URL="${MEMNC_INFERENCE_BASE_URL:-http://127.0.0.1:11434}"
 
 exec env -u PYTHONPATH "$REPO/.venv/bin/python" -m memnc.model_manager
