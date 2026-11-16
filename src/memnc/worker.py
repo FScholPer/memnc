@@ -62,6 +62,7 @@ from .schema import (
 )
 from .synergy import compute_server_success, should_withdraw
 from .version import code_version, is_stale
+from .vram_probe import fetch_loaded_models
 
 log = logging.getLogger(__name__)
 
@@ -275,6 +276,9 @@ class Worker:
         self._written_files: dict[str, str] = {}
         self._heartbeat_loops = 0
         self._disk_models: list[str] = []
+        # T7: models currently loaded in the local inference backend
+        # (refreshed in the heartbeat loop; used by the alloc gate).
+        self._loaded_models: set[str] = set()
 
     @property
     def role(self) -> Role:
@@ -471,6 +475,14 @@ class Worker:
             try:
                 if self._heartbeat_loops % DISK_MODELS_REFRESH_LOOPS == 0:
                     self._disk_models = await fetch_disk_models(self.settings.inference_base_url)
+                    # T7: also refresh locally loaded models (alloc gate).
+                    self._loaded_models = {
+                        entry["model"]
+                        for entry in await asyncio.to_thread(
+                            fetch_loaded_models,
+                            self.settings.inference_base_url,
+                        )
+                    }
                 await self.bus.advertise_node(
                     NodeInfo(
                         node_id=self.settings.node_name,
@@ -525,6 +537,19 @@ class Worker:
             await self.bus.dead_letter(envelope, "unknown task")
             await message.ack()
             return
+        # T7: planner allocation gate — a command with an alloc claim is for
+        # the claimed node only, unless the claimed model is loaded here.
+        alloc = envelope.payload.get("alloc") or None
+        if alloc and alloc.get("node") and not self.settings.node_name.startswith(
+            alloc["node"]
+        ):
+            model = envelope.payload.get("model_override") or snapshot.needs.model
+            if not (model and model in self._loaded_models):
+                try:
+                    await message.nak(delay=2.0)
+                except Exception:  # noqa: BLE001
+                    await message.nak()
+                return
 
         self._busy = True
         self._current_task = envelope.task_id
