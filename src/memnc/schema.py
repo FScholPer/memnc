@@ -31,6 +31,7 @@ class Kind(StrEnum):
     RESULT = "result"
     EVENT = "event"
     HEARTBEAT = "heartbeat"
+    HEALTH = "health"
 
 
 class TaskState(StrEnum):
@@ -61,6 +62,8 @@ SUBJECT_AUCTION = "mesh.auction.{task_id}.{step_id}"
 SUBJECT_BID = "mesh.bid.{task_id}.{step_id}"
 SUBJECT_HEARTBEAT = "mesh.node.{node}.heartbeat"
 SUBJECT_DLQ = "mesh.dlq"
+# T3: per-node health announce; twin aggregates these into MODEL_MATRIX.
+SUBJECT_HEALTH = "mesh.node.health.{node}"
 # --- M10: queryable mesh ledger (hive tracker, plan §0.5 D5) ---
 # Core-NATS request/reply, intentionally NOT covered by the JetStream stream
 # (same reason as mesh.task.submit: a stream-covered request would be answered
@@ -161,6 +164,12 @@ class NodeInfo(BaseModel):
     models: list[str] = Field(default_factory=list)
     disk_models: list[str] = Field(default_factory=list)  # T7.5: loadable, not loaded
     vram_gb: float = 0.0
+    # T2 live numbers (vram_probe): measured, not configured. vram_free_mb is
+    # the conservative value the twin allocates against; loaded_models is the
+    # /api/ps truth of what is really resident in VRAM.
+    vram_free_mb: float = 0.0
+    vram_total_mb: float = 0.0
+    loaded_models: list[str] = Field(default_factory=list)
     gpu: str = ""
     load: float = 0.0
     paused: bool = False  # T4: human pause — claim loop skips this node
@@ -180,6 +189,14 @@ class NodeInfo(BaseModel):
             models=sorted(set(self.models) | set(other.models)),
             disk_models=sorted(set(self.disk_models) | set(other.disk_models)),
             vram_gb=self.vram_gb or other.vram_gb,
+            # Live VRAM state must not be lost or inflated by the merge:
+            # free = min of the two probes, total = max, models = union.
+            vram_free_mb=min(
+                v for v in (self.vram_free_mb, other.vram_free_mb) if v > 0
+            ) if (self.vram_free_mb > 0 and other.vram_free_mb > 0)
+            else max(self.vram_free_mb, other.vram_free_mb),
+            vram_total_mb=max(self.vram_total_mb, other.vram_total_mb),
+            loaded_models=sorted(set(self.loaded_models) | set(other.loaded_models)),
             gpu=self.gpu or other.gpu,
             load=max(self.load, other.load),
             # T4: a pause must survive heartbeat refreshes; only resume_node
