@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import signal
 from typing import IO, Any
 
@@ -117,17 +118,30 @@ class ModelManager:
         Errors are returned as {"ok": False, "reason": ...} — an intent
         must never crash the model_manager process.
         """
+        log = logging.getLogger(__name__)
+        result: dict[str, Any]
         if mcp is None:
-            return {"ok": False, "op": op.value, "model": model, "reason": "no_mcp"}
-        try:
-            return self._run_intent(op, model, mcp, port, default_port)
-        except Exception as exc:  # noqa: BLE001 - intents must never crash
-            return {
-                "ok": False,
-                "op": op.value,
-                "model": model,
-                "reason": f"mcp_error: {exc}",
-            }
+            result = {"ok": False, "op": op.value, "model": model, "reason": "no_mcp"}
+        else:
+            try:
+                result = self._run_intent(op, model, mcp, port, default_port)
+            except Exception as exc:  # noqa: BLE001 - intents must never crash
+                result = {
+                    "ok": False,
+                    "op": op.value,
+                    "model": model,
+                    "reason": f"mcp_error: {exc}",
+                }
+        log.info(
+            "intent %s: model=%s ok=%s port=%s%s",
+            op.value,
+            model,
+            result.get("ok"),
+            result.get("started_port") or result.get("stopped_port")
+            or result.get("stopped_ports"),
+            "" if result.get("ok") else f' reason={result.get("reason")}',
+        )
+        return result
 
     def _run_intent(
         self,
@@ -210,6 +224,7 @@ class HealthPublisher:
         )
 
     async def run(self, stop: asyncio.Event) -> None:
+        log = logging.getLogger(__name__)
         while not stop.is_set():
             health = await asyncio.to_thread(self.manager.collect_health)
             try:
@@ -219,6 +234,17 @@ class HealthPublisher:
                 )
             except Exception:  # noqa: BLE001 - publishing must not kill the loop
                 pass
+            else:
+                gpu = health.gpu
+                log.info(
+                    "health published: node=%s vram_free_mb=%.0f/%.0f "
+                    "models=%d queue=%d",
+                    health.node,
+                    gpu.vram_free_mb,
+                    gpu.vram_total_mb,
+                    len(health.models),
+                    health.queue_depth,
+                )
             if stop.is_set():
                 break
             try:
@@ -235,6 +261,10 @@ def main() -> int:  # pragma: no cover - real process entry (T3)
     from memnc.config import Settings
 
     async def _run() -> None:
+        logging.basicConfig(
+            level=logging.INFO,
+            format='{"ts": "%(asctime)s", "level": "INFO", "msg": "%(message)s"}',
+        )
         settings = Settings()
         bus = Bus(settings)
         await bus.connect()

@@ -107,6 +107,7 @@ def _node_pubs(node: str) -> list[str]:
     # shared token implied; per-task isolation is a M7/account-level follow-up.
     return [
         f"mesh.node.{node}.>",  # own heartbeat + node telemetry
+        f"mesh.node.health.{node}",  # T3: HealthPublisher (SUBJECT_HEALTH)
         "mesh.task.*.events",  # append to task event streams
         "mesh.agent.*.result",  # role results (role is payload, not transport)
         "mesh.agent.work",  # SUBJECT_AGENT_WORK: adapter work loop egress
