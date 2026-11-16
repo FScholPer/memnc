@@ -757,3 +757,67 @@ class TaskSnapshot(BaseModel):
         if len(self.history) > 100:
             self.history = self.history[-100:]
         self.updated_at = now_iso()
+
+
+# --- digital twin + model management (plan 2026-11-16, T1) -------------------
+
+
+class GpuHealth(BaseModel):
+    """Live GPU numbers as measured (never from a registry JSON)."""
+
+    vram_free_mb: float = 0.0
+    vram_total_mb: float = 0.0
+    temp_c: float | None = None
+
+
+class ModelEntry(BaseModel):
+    """One model as observed on a node (loaded state, not registry state)."""
+
+    loaded: bool = False
+    vram_mb: float = 0.0
+    load_s: float = 0.0
+    tok_s: float = 0.0
+    roles: list[str] = Field(default_factory=list)
+
+
+class NodeHealth(BaseModel):
+    """mesh.node.health payload: one node's live serving state."""
+
+    node: str
+    ts: str = Field(default_factory=now_iso)
+    gpu: GpuHealth = Field(default_factory=GpuHealth)
+    models: dict[str, ModelEntry] = Field(default_factory=dict)
+    queue_depth: int = 0
+    serving: str = "llauncher"
+
+
+class AllocRequest(BaseModel):
+    """mesh.alloc.request: planner asks for a node for one model."""
+
+    model: str
+    task_id: str = ""
+
+
+class AllocResult(BaseModel):
+    """mesh.alloc.request reply: the claim (first requester wins)."""
+
+    ok: bool
+    model: str
+    node: str | None = None
+    reason: str = ""
+    fallback: str | None = None
+
+
+class ModelIntentOp(StrEnum):
+    LOAD = "load"
+    UNLOAD = "unload"
+    DRAIN = "drain"
+    ENSURE = "ensure"
+
+
+class ModelIntent(BaseModel):
+    """mesh.model.intent request: mesh states demand, node executes."""
+
+    op: ModelIntentOp
+    model: str = ""
+    node: str = ""
