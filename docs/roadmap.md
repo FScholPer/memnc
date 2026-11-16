@@ -1230,6 +1230,30 @@ backlog driver had already marked it failed: `_backlog_watch` counted
 terminal. Only `task.*` events are final now; 3 tests
 (tests/test_backlog_watch.py). Suite 417 passed, 2 skipped.
 
+### 14.15.12 Slice: backlog dependency resolution across mesh task ids (BUILT 2026-11-16)
+
+Observed live (2026-11-16): 4 planned entries, all blocked forever on deps
+that reference MESH task ids (`1a1e...`) which ended terminal `failed` —
+even when the work itself succeeded later via backlog strong-retry. Driver
+idle for hours. Design: docs/design-backlog-dep-resolution.md.
+
+Mechanism: `next_claimable(claimant, dep_checker=...)` — the driver passes
+`_mesh_dep_checker(settings)` (cli.py), which snapshots the mesh registry
+once per call and reports a dep satisfied when the mesh task is in a
+terminal state (done/failed/cancelled). Ordering intent, not a success
+gate: the dependent task's own attempt budget + ship-gate stay the quality
+controls. Rules:
+- dep is a backlog entry that is `done` -> satisfied (unchanged);
+- dep starts with `b-` but is not done -> BLOCKED even with a checker
+  (the checker is for mesh ids only; unknown backlog ids never unblock);
+- dep is a mesh id -> satisfied iff the registry shows a terminal state;
+- unknown id (neither store) -> blocked, conservative.
+
+Test double gotcha: the `_FakeKV` in tests/test_backlog_deps.py must carry
+the full KV contract (get with `revision`, CAS `update(key, value, last)`,
+`keys()`) — claim() swallows any exception as a CAS conflict, so an
+incomplete fake silently makes `next_claimable` return None.
+
 ### 14.15.9 Slice: swarm-vs-single benchmark (PLANNED 2026-11-14)
 
 Goal: measure whether the mesh actually beats a single model. Literature

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -251,16 +252,43 @@ class BacklogStore:
             await kv.put(task_id, by_id[task_id].model_dump_json().encode())
         return cascaded
 
-    async def next_claimable(self, claimant: str) -> BacklogTask | None:
-        """First planned task whose deps are all done; claims it atomically."""
+    async def next_claimable(
+        self,
+        claimant: str,
+        dep_checker: Callable[[str], Awaitable[bool]] | None = None,
+    ) -> BacklogTask | None:
+        """First planned task whose deps are all satisfied; claims it atomically.
+
+        A dep is satisfied when it is a done backlog entry, or when the
+        optional ``dep_checker`` accepts it (used by the driver to resolve
+        deps that reference mesh task ids; see
+        docs/design-backlog-dep-resolution.md).
+        """
         tasks = await self.list()
         done_ids = {t.id for t in tasks if t.status == BACKLOG_DONE}
+
+        async def satisfied(dep: str) -> bool:
+            if dep in done_ids:
+                return True
+            if dep.startswith("b-"):
+                # Backlog id that is not done (planned/claimed/failed/unknown):
+                # stays blocked -- the checker is for mesh task ids only.
+                return False
+            if dep_checker is not None:
+                return bool(await dep_checker(dep))
+            return False
+
         for task in tasks:
             if task.status != "planned" and not (
                 task.status == "claimed" and _is_stale_claimed(task)
             ):
                 continue
-            if any(dep not in done_ids for dep in task.deps):
+            deps_ok = True
+            for dep in task.deps:
+                if not await satisfied(dep):
+                    deps_ok = False
+                    break
+            if not deps_ok:
                 continue
             claimed = await self.claim(task.id, claimant)
             if claimed is not None:

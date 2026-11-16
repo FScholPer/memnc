@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 import nats
@@ -764,10 +765,40 @@ async def cmd_backlog_list(args: argparse.Namespace, settings: Settings) -> int:
         await client.close()
 
 
+def _mesh_dep_checker(settings: Settings) -> Callable[[str], Awaitable[bool]]:
+    """Resolve deps that reference mesh task ids (not backlog ids).
+
+    Satisfied when the mesh task is in a terminal state (done, failed or
+    cancelled): backlog deps injected as mesh ids express ordering, not a
+    success gate — a terminal-failed attempt is followed by backlog
+    strong-retries, and blocking on it deadlocks the driver forever (see
+    docs/design-backlog-dep-resolution.md). Unknown ids stay blocked.
+    """
+    snapshots: dict[str, bool] | None = None
+
+    async def check(dep: str) -> bool:
+        nonlocal snapshots
+        if dep.startswith("b-"):
+            return False
+        if snapshots is None:
+            bus = Bus(settings)
+            try:
+                await bus.connect()
+                snapshot_list = await bus.list_tasks()
+            finally:
+                await bus.close()
+            snapshots = {
+                s.task_id: s.state in TERMINAL_STATES for s in snapshot_list
+            }
+        return snapshots.get(dep, False)
+
+    return check
+
+
 async def _driver_cycle(client, settings: Settings, driver: str) -> bool:
     """One claim->submit->watch->mark cycle. Returns True when work was done."""
     store = await _backlog_store(client)
-    claimed = await store.next_claimable(driver)
+    claimed = await store.next_claimable(driver, dep_checker=_mesh_dep_checker(settings))
     if claimed is None:
         return False
     print(f"{driver}: claimed {claimed.id} ({claimed.title})", flush=True)
