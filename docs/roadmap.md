@@ -868,6 +868,44 @@ single-LoRA advantage (2603.01097) as working hypothesis.
   (memory-vision section exists).
 - Design doc first, then code. Blocks nothing, open-ended.
 
+### P2b counter-position (15.3 item 8): the argument against MAAI C2
+
+The thesis to defend: parametric memory — interaction knowledge is stored IN
+the weights (small base + growing-LoRA, rank ~ data volume; Fisher-Merge via
+mergekit as compression), not retrieved. The named, peer-reviewed
+counter-position is MAAI C2 (Electronic Markets 2026, item 12 above): the
+data-centric doctrine — model weights fixed, ALL adaptation happens through
+data and context. A second counter-position from the same corpus: MEM1
+(ICLR 2026) — RL-trained state compression keeps working memory constant
+over long interactions without any weight change. P2b is argued against
+these, not against a RAG strawman.
+
+Honest framing: this repo already RUNS the C2-orthodox stack as its
+production path — KV ledger, observation deposits, pheromone routing, the
+manual Erfahrungsspeicher. The bet is not "C2 is wrong"; it is that C2's
+doctrine has a measurable boundary condition, and P2b claims durable
+interaction memory sits outside it.
+
+What C2 concedes implicitly: its doctrine assumes the data can be re-fed at
+will. Offline-capable deployments, mesh nodes without shared storage, and
+long-horizon agents pay a per-session transport/latency cost for re-feeding
+context that weights would amortize once. P2b only claims this narrow
+territory: durable interaction memory. Routing, orchestration, and ephemeral
+state stay data-centric in memnc REGARDLESS of how P2b resolves — the two
+doctrines are complementary layers, not competitors for the whole system.
+
+Falsification test (bench discipline, not narrative): the LoRA-rank
+experiment in the external training pipeline on a fixed interaction corpus.
+Metrics: (a) train/valid divergence as the overfitting threshold — if
+divergence dominates before the rank grows enough to pay, growing-LoRA is
+dead for this data volume; (b) held-out recall of earlier interactions vs a
+fixed-weights + KV-retrieval baseline at matched inference cost. Acceptance:
+growing-LoRA recovers earlier-session knowledge measurably better than the
+C2 baseline at comparable cost. Rejection: no recall gain, or the gain
+exists only because the KV baseline was implemented badly. The dual-store
+design (KV pheromones + weights) is the hedge: if P2b loses, the C2 path is
+already built; if it wins, Fisher-Merge gives the compression step.
+
 ## P3 — M11 Mesh API rollout (M11a-d, concept done)
 M11a reads + listen (JetStream): DONE (2026-11-12).
 M11b writes + Telegram API client: DONE (2026-11-12) — WRITE_VERBS in
@@ -1597,6 +1635,11 @@ evidence for the Einzel-LoRA > Multi thesis.
 8. P2b parametric memory stays the thesis experiment: single-LoRA >> multi,
    growing-LoRA (MoRAM/CoDyRA) + Fisher-Merge as the bet, now argued against
    a named, peer-reviewed counter-position (12/C2) instead of a strawman.
+   STATUS: DONE (design) — argument section "P2b counter-position" written
+   under the P2b priority slice: MAAI C2 named as the peer-reviewed
+   counter-position, MEM1 as the second one; falsification gates fixed
+   (train/valid divergence threshold + held-out recall vs fixed-weights+KV
+   baseline); dual-store design kept as the hedge.
 
 ### 14.15.10 routing initialization (from measured data, 2026-11-15)
 
