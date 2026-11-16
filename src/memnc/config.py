@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import socket
 from functools import lru_cache
 from pathlib import Path
@@ -185,7 +186,18 @@ class Settings(BaseSettings):
     twin_stale_s: int = 30
     health_interval_s: int = 5
     # llauncher MCP server command line (stdio), run by the model_manager.
-    llauncher_mcp_cmd: str = "llauncher mcp"
+    # Real default per Hermes config: <venv python> -m llauncher.mcp_server.
+    llauncher_mcp_cmd: str = (
+        "~/.hermes/tools/llauncher/venv/bin/python -m llauncher.mcp_server"
+    )
+
+    def mcp_argv(self) -> list[str]:
+        """Split llauncher_mcp_cmd into argv, expanding ~ in argv[0]."""
+        argv = shlex.split(self.llauncher_mcp_cmd)
+        if not argv:
+            raise ValueError("llauncher_mcp_cmd is empty")
+        argv[0] = str(Path(argv[0]).expanduser())
+        return argv
     experience_store_path: str = "data/experience-store.json"
     experience_from_observations: bool = False
     # 14.15.10: pheromone evaporation. The orchestrator applies decay every
