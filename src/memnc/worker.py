@@ -11,7 +11,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from . import clarify
+from . import clarify, journal
 from .acceptance import acceptance_from_steps
 from .agent import extract_json, parse_role_output, run_agent
 from .backends import make_backend
@@ -1089,6 +1089,8 @@ class Worker:
                     "critique": snapshot.critique.model_dump() if snapshot.critique else None,
                     "revisions": snapshot.revisions,
                     "workspace_root": str(self.settings.workspace_root),
+                    # 15.4.3: compact per-attempt checkpoint notes.
+                    "attempt_journal": snapshot.attempt_journal,
                     "role": role.value,
                     "harness": snapshot.harness,
                     "model_override": snapshot.model_override,
@@ -1194,7 +1196,7 @@ class Worker:
             event = await self._self_critique(snapshot)
         if envelope.node:
             await self.bus.emit_event(snapshot, "result.executed_on", envelope.node)
-        await self._apply_local(snapshot, event)
+        await self._apply_local(snapshot, event, role=envelope.role)
 
     def _self_reflect_active(self, snapshot: TaskSnapshot) -> bool:
         """True when the orchestrator selected the self-reflect edge (arm B)."""
@@ -1532,7 +1534,9 @@ class Worker:
             snapshot, "state.coding", f"fanout: {len(snapshot.subtasks)} subtasks"
         )
 
-    async def _apply_local(self, snapshot: TaskSnapshot, event: Event) -> None:
+    async def _apply_local(
+        self, snapshot: TaskSnapshot, event: Event, role: Role | None = None
+    ) -> None:
         result = transition(
             snapshot.state,
             event,
@@ -1542,6 +1546,9 @@ class Worker:
             max_revisions=snapshot.max_revisions,
             gate=snapshot.gate,
         )
+        # 15.4.3 attempt journal: record what this attempt completed before
+        # the attempt counter is reset/advanced by the retry below.
+        journal.note_failure(snapshot, event, result, role)
         snapshot.state = result.state
         snapshot.attempt = 0 if result.attempt_reset else snapshot.attempt + result.attempt_delta
         snapshot.revisions += result.revision_delta

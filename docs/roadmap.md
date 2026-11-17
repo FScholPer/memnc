@@ -1910,10 +1910,25 @@ workspace-continuity slices still open):
   binaries and artifacts a prior attempt left instead of re-deriving
   state. Tests: `tests/test_harnesses.py` (listing cases + prompt
   rendering).
-- **Checkpoint/restart (design, not implemented):** each attempt persists
-  a short attempt-journal (plan JSON, files touched, last completed stage)
-  into the task snapshot; a retry resumes from the last completed stage
-  instead of restarting.
+- **Checkpoint/restart (BUILT 2026-11-17, attempt-journal slice):** every
+  failed attempt that schedules a retry appends one bounded entry to
+  `TaskSnapshot.attempt_journal` (`src/memnc/journal.py`,
+  `note_failure()`): the failed attempt number, the stage (role), the
+  truncated error (400 chars), the file paths the attempt produced (from
+  the coder output, max 20) and a short implementation summary. The list is
+  capped at 8 entries (oldest dropped) so KV snapshots cannot grow
+  unboundedly. Both retry sites record the entry BEFORE the attempt counter
+  advances (`Orchestrator._apply` via `event.role`,
+  `Worker._apply_local` via `envelope.role`). The dispatch payload
+  (orchestrator `_dispatch` + worker claim path) carries the structured
+  entries and `build_user_prompt` renders them as a "PROGRESS FROM PRIOR
+  ATTEMPTS" block for every role. The journal is derived from data the
+  snapshot already stores (code output, error) — no new KV buckets, no
+  worker claim-path change beyond passing the field through. Older
+  snapshots without the field are tolerated (`note_failure` no-ops).
+  Answering the open question: plan JSON stays OUT of the journal (the
+  payload already carries the plan verbatim); the journal holds only what
+  the plan/error alone do not show. Tests: `tests/test_journal.py`.
 - **Workspace continuity:** the task workspace (already a mounted volume)
   becomes the source of truth; a retry is told "the workspace exists, list
   it before you plan" instead of re-deriving state.
@@ -1925,9 +1940,9 @@ workspace-continuity slices still open):
 - Non-goal for now: task migration across nodes mid-attempt. Workspace
   volumes are node-local; resume happens on the claiming node.
 
-Open questions: how much journal belongs in the snapshot (KV size limits),
-whether checkpointing needs a code change in the worker claim path, and how
-error classification maps onto the existing trace entries.
+Open question: how error classification maps onto the existing trace
+entries (the journal stores the raw reason text; failclass labels could be
+added per entry later).
 
 Finding — fabrication passed the DONE gate (2026-11-15, mesh autonomy test):
 task 1a1e00c15dc0077966c7064 (KugelAudio TTS) finished DONE with critic
