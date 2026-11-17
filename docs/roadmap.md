@@ -72,6 +72,14 @@
   autocompletes. Registration is best-effort (failure logged, never fatal).
   Tests: 3 cases in `tests/test_retry_intent.py`.
 
+- **2026-11-17 — Quieter event stream (P1 item 8)**: `Settings.
+  telegram_quiet_progress` (env `TELEGRAM_QUIET_PROGRESS`, default on)
+  makes the Telegram observer drop routine progress transitions
+  (RECEIVED/CLAIMED/PLANNING/CODING/CRITIQUE/REVISE) from the digest; the
+  New-task card, terminal states, WAIT_INPUT and failure detail rework
+  still broadcast, `telegram_verbose` overrides. Tests in
+  `tests/test_telegram_observer.py`.
+
 - **2026-11-14 — Retry with intent (P1 item 6)**: `/retry <id> --model
   <name>` reruns a FAILED/CANCELLED task on a chosen model. `ControlCommand`
   gains `model_override`; the retry branch in the orchestrator stamps it on
@@ -669,13 +677,11 @@ today.
    route. See the Built entry below.
 7. **~~Command discovery.~~ DONE 2026-11-14** — see Built entry; grouped
    `/help` and BotFather `setMyCommands` registration at startup.
-8. **Quieter event stream.** Group and throttle routine state transitions
-   (e.g. claim→advance collapsed), keep the loud channel for submit /
-   failure / gate / completion. Rationale: notification rules belong to
-   the user, not the emitter; 
-§14.10's "park > 10 min → DM" rule then
-   composes on top. Fix: event spam vs. signal (the operator's original
-   Telegram frustration).
+8. **~~Quieter event stream.~~ DONE 2026-11-17** — `TELEGRAM_QUIET_PROGRESS`
+   (default on) drops routine progress transitions (RECEIVED/CLAIMED/
+   PLANNING/CODING/CRITIQUE/REVISE) from the digest entirely; the New-task
+   card, terminal states, WAIT_INPUT and failure details still broadcast.
+   `telegram_verbose` still overrides to the full stream.
 
 ### P2 — polish, tie into later milestones
 
