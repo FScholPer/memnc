@@ -757,6 +757,9 @@ class TaskSnapshot(BaseModel):
     completed_tool_calls: list[str] = Field(default_factory=list)
     tool_results: dict[str, str] = Field(default_factory=dict)
     last_action: dict[str, Any] | None = None
+    # 15.4.3 attempt journal: one bounded note per failed attempt that
+    # scheduled a retry (see memnc.journal); empty until a first retry.
+    attempt_journal: list[dict[str, Any]] = Field(default_factory=list)
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
     error: str | None = None

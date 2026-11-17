@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from . import journal
 from .schema import MessageTuple, Role
 
-PROMPT_VERSION = "2026-10-31.1"
+PROMPT_VERSION = "2026-11-17.1"
 
 MAX_FILE_CHARS = 20_000
 MAX_PROMPT_CHARS = 90_000
@@ -137,6 +138,11 @@ def build_user_prompt(
             "workspace; inspect it before redoing or planning work):\n"
             f"{workspace_state}"
         )
+
+    # 15.4.3 attempt journal: compact checkpoint notes from failed attempts.
+    journal_block = journal.render(payload.get("attempt_journal"))
+    if journal_block:
+        parts.append(journal_block)
 
     code = payload.get("code")
     if code:

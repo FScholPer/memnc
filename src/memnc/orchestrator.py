@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import acl, clarify
+from . import acl, clarify, journal
 from .acl import check_registry_write
 from .api import ApiServer
 from .bus import Bus
@@ -895,6 +895,10 @@ class Orchestrator:
             gate=snapshot.gate,
         )
 
+        # 15.4.3 attempt journal: record what this attempt completed before
+        # the attempt counter advances below.
+        journal.note_failure(snapshot, event, result, event.role)
+
         changed = (
             result.state is not snapshot.state
             or bool(result.actions)
@@ -1155,6 +1159,8 @@ class Orchestrator:
                 # 14.15.10: strategy edge chosen from the pheromone field
                 # ("") = orchestrator never selected / selection disabled).
                 "strategy": snapshot.routing_edge,
+                # 15.4.3: compact per-attempt checkpoint notes.
+                "attempt_journal": snapshot.attempt_journal,
                 # T7: planner allocation claim ({"model", "node"} | None).
                 "alloc": alloc,
             },
