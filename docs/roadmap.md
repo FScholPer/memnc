@@ -2118,7 +2118,10 @@ mesh attempts are followed by backlog strong-retries that carry the work
 forward; blocking on them deadlocked the driver (observed 2026-11-16, 4
 planned entries idle for hours). Unknown dep ids (neither store) stay
 blocked, conservative. Follow-ups: root-cause intermittent
-`driver error: nats: no keys found` (still open); clean old night/smoke
+`driver error: nats: no keys found` (DONE 2026-11-17, commit 771a2b8 —
+the server runs H4 NKey-only auth, the legacy NATS_TOKEN in .env gets
+'Authorization Violation'; backlog-driver.sh now exports
+NATS_NKEYS_SEED=secrets/operator.nk); clean old night/smoke
 entries from the backlog (DONE 2026-11-16 — 29 stale night1/2/3/smoke1
 entries removed live via the new `backlog-del`, backlog 31 -> 12 entries).
 
