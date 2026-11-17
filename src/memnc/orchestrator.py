@@ -17,6 +17,7 @@ from .config import Settings, get_settings
 from .failclass import MODEL_LEVEL_KINDS, classify_failure
 from .fsm import Event, done_block_reason, transition
 from .fsutil import apply_artifacts
+from .harnesses.workspace import workspace_listing
 from .observations import TaskObservation, observation_from_snapshot
 from .pheromone import route_strategy, task_type_from_prompt
 from .schema import (
@@ -1133,6 +1134,14 @@ class Orchestrator:
                 "revisions": snapshot.revisions,
                 "last_error": snapshot.error,
                 "workspace_root": str(self.settings.workspace_root),
+                # 15.4.3 workspace continuity: on retries, tell the role what
+                # the shared workspace already contains (prior attempts may
+                # have left usable state — a venv, binaries, artifacts).
+                "workspace_state": (
+                    workspace_listing(Path(self.settings.workspace_root))
+                    if snapshot.attempt > 1
+                    else None
+                ),
                 "role": role.value,
                 "prefer_node": snapshot.prefer_node,
                 "harness": snapshot.harness,
