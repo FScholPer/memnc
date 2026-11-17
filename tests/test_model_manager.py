@@ -70,6 +70,9 @@ def test_cmd_expands_tilde_and_env():
 
 def test_collect_health_from_probe_and_ps(monkeypatch):
     monkeypatch.setattr(
+        "memnc.model_manager.probe_gpus", lambda: []
+    )
+    monkeypatch.setattr(
         "memnc.model_manager.probe_vram",
         lambda: (1_500_000_000, 16_000_000_000),
     )
@@ -97,6 +100,7 @@ def test_collect_health_survives_probe_crash(monkeypatch):
     def boom():
         raise RuntimeError("probe exploded")
 
+    monkeypatch.setattr("memnc.model_manager.probe_gpus", boom)
     monkeypatch.setattr("memnc.model_manager.probe_vram", boom)
     monkeypatch.setattr(
         "memnc.model_manager.fetch_loaded_models", lambda base_url: []

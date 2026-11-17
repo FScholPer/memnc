@@ -25,7 +25,11 @@ from memnc.schema import (
     ModelIntentOp,
     NodeHealth,
 )
-from memnc.vram_probe import fetch_loaded_models, probe_vram  # noqa: F401
+from memnc.vram_probe import (  # noqa: F401
+    fetch_loaded_models,
+    probe_gpus,
+    probe_vram,
+)
 
 MCP_TIMEOUT_S = 30.0
 
@@ -86,9 +90,29 @@ class ModelManager:
     def collect_health(self, queue_depth: int = 0) -> NodeHealth:
         gpu = GpuHealth()
         try:
-            used, total = probe_vram()
-            gpu.vram_total_mb = total / 2**20
-            gpu.vram_free_mb = (total - used) / 2**20
+            cards = probe_gpus()
+            if cards:
+                from memnc.schema import GpuCardHealth
+
+                # Headline = worst card: placement gates on what one card can
+                # hold, a sum across cards masks a full GPU.
+                worst_used, worst_total = min(
+                    cards, key=lambda ut: ut[1] - ut[0]
+                )
+                gpu.vram_total_mb = worst_total / 2**20
+                gpu.vram_free_mb = (worst_total - worst_used) / 2**20
+                gpu.cards = [
+                    GpuCardHealth(
+                        card=f"card{i}",
+                        vram_free_mb=(t - u) / 2**20,
+                        vram_total_mb=t / 2**20,
+                    )
+                    for i, (u, t) in enumerate(cards)
+                ]
+            else:
+                used, total = probe_vram()
+                gpu.vram_total_mb = total / 2**20
+                gpu.vram_free_mb = (total - used) / 2**20
         except Exception:  # noqa: BLE001 - health must never crash the node
             pass
 

@@ -94,12 +94,79 @@ def _probe_rocm_smi() -> tuple[int, int] | None:
 
 
 def probe_vram() -> tuple[int, int]:
-    """(used_bytes, total_bytes) summed over all GPUs; (0, 0) if nothing works."""
-    for probe in (_probe_sysfs, _probe_amdgpu_top, _probe_rocm_smi):
+    """(used_bytes, total_bytes) summed over all GPUs; (0, 0) if nothing works.
+
+    NOTE: summing masks a full card on multi-GPU nodes. Callers that gate
+    placement must use probe_gpus() and look at the worst card.
+    """
+    gpus = probe_gpus()
+    if not gpus:
+        return (0, 0)
+    return (sum(u for u, _ in gpus), sum(t for _, t in gpus))
+
+
+def probe_gpus() -> list[tuple[int, int]]:
+    """Per-GPU (used_bytes, total_bytes), one tuple per card; [] if nothing works."""
+    for probe in (_probe_gpus_sysfs, _probe_gpus_amdgpu_top, _probe_gpus_rocm_smi):
         got = probe()
-        if got is not None:
+        if got:
             return got
-    return (0, 0)
+    return []
+
+
+def _probe_gpus_sysfs() -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    for card in sorted(Path(SYSFS_DRM).glob("card*")):
+        dev = card / "device"
+        u = _read_int(dev / VRAM_USED_FILE)
+        t = _read_int(dev / VRAM_TOTAL_FILE)
+        if u is not None and t is not None and t > 0:
+            out.append((u, t))
+    return out
+
+
+def _probe_gpus_amdgpu_top() -> list[tuple[int, int]]:
+    try:
+        out = subprocess.run(  # noqa: S603
+            ["amdgpu_top", "--json", "-n", "-i", "0"],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        ).stdout
+        data = json.loads(out)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    result: list[tuple[int, int]] = []
+    for gpu in data if isinstance(data, list) else [data]:
+        vram = gpu.get("vram") or {}
+        u, t = vram.get("vram_used"), vram.get("total_vram")
+        if u is None or t is None:
+            continue
+        result.append((int(u) * 2**20, int(t) * 2**20))  # MiB -> bytes
+    return result
+
+
+def _probe_gpus_rocm_smi() -> list[tuple[int, int]]:
+    try:
+        out = subprocess.run(  # noqa: S603
+            ["rocm-smi", "--showmeminfo", "vram", "--json"],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        ).stdout
+        data = json.loads(out)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    result: list[tuple[int, int]] = []
+    for vals in data.values():
+        if not isinstance(vals, dict):
+            continue
+        u = vals.get("VRAM Total Used Memory (B)")
+        t = vals.get("VRAM Total Memory (B)")
+        if u is None or t is None:
+            continue
+        result.append((int(u), int(t)))
+    return result
 
 
 def vram_summary(

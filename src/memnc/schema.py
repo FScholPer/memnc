@@ -785,12 +785,26 @@ class TaskSnapshot(BaseModel):
 # --- digital twin + model management (plan 2026-11-16, T1) -------------------
 
 
+class GpuCardHealth(BaseModel):
+    """One physical GPU card as probed (per-card, not summed)."""
+
+    card: str = ""
+    vram_free_mb: float = 0.0
+    vram_total_mb: float = 0.0
+
+
 class GpuHealth(BaseModel):
-    """Live GPU numbers as measured (never from a registry JSON)."""
+    """Live GPU numbers as measured (never from a registry JSON).
+
+    Headline vram_free_mb/vram_total_mb is the WORST card on the node, not a
+    sum — summing across cards masks a full GPU (Frank, 2026-11-17). The
+    per-card truth is in `cards`.
+    """
 
     vram_free_mb: float = 0.0
     vram_total_mb: float = 0.0
     temp_c: float | None = None
+    cards: list[GpuCardHealth] = Field(default_factory=list)
 
 
 class ModelEntry(BaseModel):

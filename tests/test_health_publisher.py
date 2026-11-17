@@ -35,6 +35,9 @@ def test_health_subject_includes_node():
 
 async def test_publisher_publishes_nodehealth_json(monkeypatch):
     monkeypatch.setattr(
+        "memnc.model_manager.probe_gpus", lambda: []
+    )
+    monkeypatch.setattr(
         "memnc.model_manager.probe_vram",
         lambda: (1_500_000_000, 16_000_000_000),
     )
@@ -72,6 +75,7 @@ async def test_publisher_survives_collect_failure(monkeypatch):
     def boom():
         raise RuntimeError("sysfs gone")
 
+    monkeypatch.setattr("memnc.model_manager.probe_gpus", boom)
     monkeypatch.setattr("memnc.model_manager.probe_vram", boom)
     monkeypatch.setattr(
         "memnc.model_manager.fetch_loaded_models", lambda base_url: []
@@ -96,6 +100,9 @@ async def test_publisher_survives_collect_failure(monkeypatch):
 
 
 async def test_publisher_stops_cleanly(monkeypatch):
+    monkeypatch.setattr(
+        "memnc.model_manager.probe_gpus", lambda: []
+    )
     monkeypatch.setattr(
         "memnc.model_manager.probe_vram", lambda: (0, 1)
     )
