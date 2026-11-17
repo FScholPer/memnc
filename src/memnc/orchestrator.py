@@ -827,6 +827,49 @@ class Orchestrator:
             intermediate_output=io,
         )
 
+    async def _suggest_model(self, snapshot: TaskSnapshot, role: str, error_text: str) -> None:
+        """P2 item 9: suggest a known-good alternative on the failure card.
+
+        When a task fails terminally on a model-level failure, look up the
+        live roster for other models advertised for the failing role, skip
+        retired ones, rank candidates by reputation approvals, and record the
+        best pick as a ``model.suggest`` history entry (the Telegram failure
+        card surfaces it). Advisory only: routing is never touched here."""
+        kind = classify_failure(error_text)
+        if kind not in MODEL_LEVEL_KINDS or not role:
+            return
+        route = snapshot.route or {}
+        failed = str(route.get(role, "")).split(":")[-1]
+        try:
+            nodes = await self.bus.list_nodes()
+            reps = await self.bus.list_reputation()
+        except Exception:  # noqa: BLE001 - suggestion is best effort
+            return
+        rep = {r.model: r for r in reps}
+        candidates: list[str] = []
+        for node in nodes:
+            if node.paused or role not in node.roles:
+                continue
+            for model in node.models:
+                info = rep.get(model)
+                if model == failed or model in candidates or (info is not None and info.retired):
+                    continue
+                candidates.append(model)
+        if not candidates:
+            snapshot.record(
+                "model.suggest", f"{role}: none (was {failed or 'unknown'}, {kind})"
+            )
+            return
+        candidates.sort(
+            key=lambda m: rep[m].approvals if m in rep else 0, reverse=True
+        )
+        pick = candidates[0]
+        snapshot.record("model.suggest", f"{role}: {pick} ({kind})")
+        log.info(
+            "model suggestion recorded",
+            extra={"task_id": snapshot.task_id, "role": role, "failed": failed, "suggest": pick},
+        )
+
     # -- transitions -------------------------------------------------------
     async def _maybe_rotate_model(
         self,
@@ -919,6 +962,15 @@ class Orchestrator:
             snapshot.error = None
         if event.reason and result.state is TaskState.FAILED:
             snapshot.error = event.reason
+
+        if result.state is TaskState.FAILED and event.reason:
+            # P2 item 9: attach the alternative-model suggestion to the
+            # snapshot BEFORE it is stored, so the failure card carries it.
+            await self._suggest_model(
+                snapshot,
+                event.role.value if event.role else (list(snapshot.route or {})[-1] if snapshot.route else ""),
+                event.reason,
+            )
 
         await self.bus.put_snapshot(snapshot)
         await self.bus.emit_event(

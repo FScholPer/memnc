@@ -72,6 +72,16 @@
   autocompletes. Registration is best-effort (failure logged, never fatal).
   Tests: 3 cases in `tests/test_retry_intent.py`.
 
+- **2026-11-17 — Model-suggestion flow on failure (P2 item 9)**:
+  `Orchestrator._suggest_model` fires on the terminal FAILED transition
+  (before the snapshot is stored, so the failure card sees it): failure
+  classified via failclass; roster candidates for the failing role minus
+  the failed model and retired ones, ranked by reputation approvals; pick
+  recorded as `model.suggest`. `failure_suggestion()` in telegram.py
+  renders it on the FAILED card. `tests/test_model_suggestion.py` (9
+  cases: ranking, retired/paused/failed exclusion, unknown-failure
+  no-op, card rendering).
+
 - **2026-11-17 — Quieter event stream (P1 item 8)**: `Settings.
   telegram_quiet_progress` (env `TELEGRAM_QUIET_PROGRESS`, default on)
   makes the Telegram observer drop routine progress transitions
@@ -685,13 +695,13 @@ today.
 
 ### P2 — polish, tie into later milestones
 
-9. **Model-suggestion flow on failure**: when the failure classifier
-   (robustness milestone) tags "weak model" and reputation data agrees,
-   the failure card offers the known-good alternative from the roster's
-   `disk_models`/whitelist. Bridges 
-§14.13) come first because they produce the
-training data everything below depends on. Repo stays English (the operator's rule);
-extend → test → harden → continue.
+9. **~~Model-suggestion flow on failure.~~ DONE 2026-11-17** — on a
+   terminal model-level failure (failclass: timeout / server /
+   invalid_output) the orchestrator records a `model.suggest` history
+   entry: the best alternative for the failing role from the live roster,
+   ranked by reputation approvals, retired models skipped, advisory only.
+   The Telegram failure card appends it as `next try: <role>: <model>`.
+   Built entry below; tests in `tests/test_model_suggestion.py`.
 
 **BUILD (P0, committed to the plan):**
 
