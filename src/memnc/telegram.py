@@ -432,6 +432,17 @@ def format_model_requests(requests: list[ModelRequest]) -> str:
     return "\n".join(lines)
 
 
+def failure_suggestion(snapshot) -> str:
+    """P2 item 9: the orchestrator's alternative-model suggestion from the
+    snapshot history (last ``model.suggest`` entry), if any. Duck-typed:
+    snapshot-like fakes without a history just yield no suggestion."""
+    history = getattr(snapshot, "history", None) or []
+    for entry in reversed(history):
+        if getattr(entry, "event", None) == "model.suggest":
+            return f"next try: {entry.detail}"
+    return ""
+
+
 def _redact(text: str, token: str) -> str:
     """Strip the bot token out of exception strings (URLs leak it)."""
     if not token:
@@ -496,6 +507,12 @@ class TelegramObserver:
                         card += f"\n{title}"
                     if detail:
                         card += f"\ncause: {detail}"
+                    if snapshot is not None:
+                        # P2 item 9: surface the orchestrator's alternative-
+                        # model suggestion from the snapshot history.
+                        suggestion = failure_suggestion(snapshot)
+                        if suggestion:
+                            card += f"\n{suggestion}"
                     card += f"\nretry: /retry {task_id}"
                     await self.broadcast(card, markup=task_buttons(task_id))
                 elif state == "DONE" and task_id:
