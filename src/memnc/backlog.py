@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from nats.js import JetStreamContext
-from nats.js.errors import NotFoundError
+from nats.js.errors import NoKeysError, NotFoundError
 from pydantic import BaseModel, Field
 
 BACKLOG_BUCKET = "memnc-backlog"
@@ -174,7 +174,7 @@ class BacklogStore:
         kv = await self._ensure_kv()
         try:
             keys = await kv.keys()
-        except NotFoundError:  # empty bucket: nats-py raises instead of []
+        except (NotFoundError, NoKeysError):  # empty bucket: nats-py raises instead of []
             return []
         tasks: list[BacklogTask] = []
         for key in keys:

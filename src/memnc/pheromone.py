@@ -312,7 +312,13 @@ class PheromoneStore:
         """Evaporate every cell; returns the number of cells rewritten."""
         assert self.kv is not None
         updated = 0
-        for key in list(await self.kv.keys() or []):
+        from nats.js.errors import NoKeysError
+
+        try:
+            cell_keys = list(await self.kv.keys() or [])
+        except NoKeysError:  # empty bucket: nats-py raises instead of returning []
+            cell_keys = []
+        for key in cell_keys:
             try:
                 raw = await self.kv.get(key)
                 entry = PheromoneEntry.model_validate(json.loads(raw.value))

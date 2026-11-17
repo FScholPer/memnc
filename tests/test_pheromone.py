@@ -431,3 +431,18 @@ def test_orchestrator_plain_failure_stays_on_live_edge():
     )
     asyncio.run(orch._deposit_pheromone(snap))
     assert orch.bus.calls == [(orch.bus.calls[0][0], LIVE_EDGE, "failure", 0)]
+
+
+def test_decay_empty_bucket_raises_no_keys() -> None:
+    """Live regression: decay on an empty bucket must not raise NoKeysError."""
+    from nats.js.errors import NoKeysError
+
+    js = FakeJS()
+    store = PheromoneStore(js)
+    asyncio.run(store.ensure())
+
+    async def boom() -> list:
+        raise NoKeysError()
+
+    js.kv.keys = boom  # type: ignore[method-assign]
+    assert asyncio.run(store.decay()) == 0
