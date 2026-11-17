@@ -130,6 +130,14 @@ def build_user_prompt(
         if plan:
             parts.append(f"PLAN:\n{_dump(plan)}")
 
+    workspace_state = payload.get("workspace_state")
+    if workspace_state:
+        parts.append(
+            "WORKSPACE STATE (prior attempts left files in the shared "
+            "workspace; inspect it before redoing or planning work):\n"
+            f"{workspace_state}"
+        )
+
     code = payload.get("code")
     if code:
         parts.append(f"CURRENT IMPLEMENTATION SUMMARY:\n{code.get('summary', '')}")

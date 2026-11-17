@@ -62,6 +62,30 @@ async def changed_file_contents(
     return changed
 
 
+def workspace_listing(root: Path, limit: int = 25) -> str | None:
+    """15.4.3 workspace continuity: top-level listing for retry dispatch.
+
+    Returns None when the root does not exist or is empty (nothing for a
+    retrying planner/coder to know about). Otherwise a short deterministic
+    listing: directories suffixed with ``/``, sorted, capped at ``limit``
+    entries with a remaining-count note. File names only — no sizes or
+    contents, so the note stays small enough for a dispatch payload.
+    """
+    if not root.exists():
+        return None
+    try:
+        entries = sorted(p.name + ("/" if p.is_dir() else "") for p in root.iterdir())
+    except OSError:
+        return None
+    if not entries:
+        return None
+    shown = entries[:limit]
+    lines = list(shown)
+    if len(entries) > limit:
+        lines.append(f"... and {len(entries) - limit} more")
+    return "\n".join(lines)
+
+
 async def workspace_diff(workspace: Path) -> str:
     """The git diff of ``workspace`` including untracked files ('' if not a repo)."""
     if not _is_git_repo(workspace):

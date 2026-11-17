@@ -1901,6 +1901,15 @@ workspace-continuity slices still open):
   `model.rotate` history event and keeps the normal retry path. Setting
   `model_rotate_on_fail` (default ON; `MODEL_ROTATE_ON_FAIL=0` disables).
   Tests: `tests/test_error_retry.py`.
+- **Workspace continuity (BUILT 2026-11-17):** the dispatch payload now
+  carries `workspace_state` on every retry (attempt > 1) — a short
+  top-level listing of the shared workspace (`workspace_listing()` in
+  `harnesses/workspace.py`: dirs suffixed `/`, sorted, capped, None when
+  missing/empty; names only, no sizes). `build_user_prompt` renders it as
+  a WORKSPACE STATE section so a retrying planner/coder sees the venv,
+  binaries and artifacts a prior attempt left instead of re-deriving
+  state. Tests: `tests/test_harnesses.py` (listing cases + prompt
+  rendering).
 - **Checkpoint/restart (design, not implemented):** each attempt persists
   a short attempt-journal (plan JSON, files touched, last completed stage)
   into the task snapshot; a retry resumes from the last completed stage

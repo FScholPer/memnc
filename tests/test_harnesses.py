@@ -639,3 +639,38 @@ def test_opencode_harness_clean_state_flag(tmp_path, monkeypatch):
     result = asyncio.run(harness.run("do it", tmp_path))
     assert result.ok is True
     assert not state.exists()  # wiped (and NOT recreated by the fake)
+
+
+def test_workspace_listing_cases(tmp_path) -> None:
+    from memnc.harnesses.workspace import workspace_listing
+
+    assert workspace_listing(tmp_path / "missing") is None
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert workspace_listing(empty) is None
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "venv").mkdir()
+    (ws / "report.md").write_text("x")
+    listing = workspace_listing(ws)
+    assert listing == "report.md\nvenv/"
+
+    many = tmp_path / "many"
+    many.mkdir()
+    for i in range(30):
+        (many / f"f{i:02d}").write_text("x")
+    listing = workspace_listing(many, limit=10)
+    lines = listing.splitlines()
+    assert len(lines) == 11
+    assert lines[-1] == "... and 20 more"
+
+
+def test_build_user_prompt_workspace_state() -> None:
+    from memnc.roles import Role, build_user_prompt
+
+    prompt = build_user_prompt(Role.PLANNER, {"task": "t", "workspace_state": "venv/"})
+    assert "WORKSPACE STATE" in prompt and "venv/" in prompt
+    prompt = build_user_prompt(Role.PLANNER, {"task": "t"})
+    assert "WORKSPACE STATE" not in prompt
