@@ -1371,7 +1371,7 @@ Status (2026-11-14): stage 2 done — `memnc.bench.runner`:
     repo-own evidence for the single-agent>multi-structure finding;
     full seeded run (reps>=5) + raised inference timeout next.
 
-### 14.15.10 Slice: pheromone routing (INITIALIZATION + SELECTION CONSUMPTION + WORKER-SIDE STRATEGY HONOR SHIPPED; next: decay tuning)
+### 14.15.10 Slice: pheromone routing (INITIALIZATION + SELECTION CONSUMPTION + WORKER-SIDE STRATEGY HONOR + DECAY TUNING SHIPPED)
 
 the operator's framing: "Ich komme ja aus den Routing Algorithmen" — routing as the
 mental model for mesh coordination. Synthesis of AMRO-S (arXiv 2603.12933),
@@ -1689,8 +1689,22 @@ bucket leaves the default chain head in place. Tests:
 planner step skipped (task prompt IS the plan), coder model critiques its own
 output in-process through the normal gates (acceptance/verify/reputation),
 revision budget stays with the FSM; see the Built entry and
-`tests/test_worker_self_reflect.py` (5). Still open: decay intervals need a
-live-tuning pass.
+`tests/test_worker_self_reflect.py` (5).
+
+**Decay tuning — live pass (2026-11-17/18, defaults confirmed):** inspected the
+live `mesh_pheromones` field during the in-flight arm-D hard run. Defaults
+rho=0.1 @ 3600 s hold up; no tuning change made:
+- Half-life ~6.6 h: bench-seeded hard_* cells from the 2026-11-15 full run had
+  decayed to the noise floor (~0.9^48 per deposit) while the current run
+  re-accumulates fresh S deposits (~0.9^7-0.9^10) — the field tracks recent
+  behaviour exactly as designed.
+- No runaway accumulation: max tau in the field ~2.3; repeated-failure cells
+  sum to < 2 within hours and then fade overnight.
+- Stale failure signal retention is acceptable: a two-day-old failed mesh task
+  still carries ~0.3-0.8 failure tau long enough to steer escalation away
+  without permanently benching the edge. If bench-style bulk deposits ever
+  need faster clearance, the knob is `pheromone_decay_interval_s` (settings
+  only), not a code change.
 
 Shipped (2026-11-15, initialization slice): `pheromone.py` implements the
 score tau^alpha * eta^beta with these exact constants, the 24-cell rescue
