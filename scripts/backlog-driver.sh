@@ -23,4 +23,12 @@ if [ -n "$nats_token" ]; then
   export NATS_TOKEN="$nats_token"
 fi
 
+# H4: NKey mode — the server rejects the legacy shared token
+# ('Authorization Violation'), which is what caused the intermittent
+# `nats: no keys found` driver error. The driver acts as the operator
+# identity (may publish mesh.task.submit, subscribe mesh.task.*.events).
+if [ -z "${NATS_NKEYS_SEED:-}" ] && [ -f "$REPO/secrets/operator.nk" ]; then
+  export NATS_NKEYS_SEED="$REPO/secrets/operator.nk"
+fi
+
 exec env -u PYTHONPATH "$MESHCTL" backlog-run
