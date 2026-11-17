@@ -15,6 +15,7 @@ import pytest
 from memnc.schema import NodeInfo
 from memnc.vram_probe import (
     fetch_loaded_models,
+    probe_gpus,
     probe_vram,
     vram_summary,
 )
@@ -50,6 +51,9 @@ def test_probe_ignores_empty_or_partial_cards(tmp_path, monkeypatch):
 def test_probe_no_cards_returns_zeros(tmp_path, monkeypatch):
     monkeypatch.setattr("memnc.vram_probe.SYSFS_DRM", tmp_path / "missing")
     # Kill the live-machine fallbacks so the test never touches real GPUs.
+    monkeypatch.setattr("memnc.vram_probe._probe_gpus_amdgpu_top", lambda: [])
+    monkeypatch.setattr("memnc.vram_probe._probe_gpus_rocm_smi", lambda: [])
+    # Legacy single-tuple probes still referenced by probe_vram fallback path.
     monkeypatch.setattr("memnc.vram_probe._probe_amdgpu_top", lambda: None)
     monkeypatch.setattr("memnc.vram_probe._probe_rocm_smi", lambda: None)
     assert probe_vram() == (0, 0)
@@ -63,8 +67,7 @@ def test_vram_summary_mb():
 
 def test_rocm_smi_fallback_when_sysfs_missing(tmp_path, monkeypatch):
     monkeypatch.setattr("memnc.vram_probe.SYSFS_DRM", tmp_path / "missing")
-    # amdgpu_top sits before rocm-smi in the fallback chain — kill it here.
-    monkeypatch.setattr("memnc.vram_probe._probe_amdgpu_top", lambda: None)
+    monkeypatch.setattr("memnc.vram_probe._probe_gpus_amdgpu_top", lambda: [])
 
     class FakeRun:
         def __init__(self, stdout: str) -> None:
@@ -179,6 +182,7 @@ def test_nodeinfo_kv_roundtrip(kv):
 
 def _patch_rocm_dead(monkeypatch):
     # rocm-smi must not fire during amdgpu_top tests: make it return None.
+    monkeypatch.setattr("memnc.vram_probe._probe_gpus_rocm_smi", lambda: [])
     monkeypatch.setattr("memnc.vram_probe._probe_rocm_smi", lambda: None)
 
 
@@ -217,3 +221,33 @@ def test_probe_order_sysfs_wins_over_amdgpu_top(tmp_path, monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("amdgpu_top must not run")),
     )
     assert probe_vram() == (100, 200)
+
+
+# --- per-GPU probe (Frank, 2026-11-17): summing masks a full card -----------
+
+
+def test_probe_gpus_lists_each_card(tmp_path, monkeypatch):
+    _make_card(tmp_path, 0, used=16_214_548_480, total=17_163_091_968)
+    _make_card(tmp_path, 1, used=27_213_824, total=17_163_091_968)
+    monkeypatch.setattr("memnc.vram_probe.SYSFS_DRM", tmp_path)
+    gpus = probe_gpus()
+    assert gpus == [
+        (16_214_548_480, 17_163_091_968),
+        (27_213_824, 17_163_091_968),
+    ]
+
+
+def test_health_headline_is_worst_card_not_sum(tmp_path, monkeypatch):
+    # Real bug: summing card0 (nearly full) + card1 (empty) said "17 GB free"
+    # while Ollama's card was 100% full. Headline must be the worst card.
+    _make_card(tmp_path, 0, used=16_214_548_480, total=17_163_091_968)
+    _make_card(tmp_path, 1, used=27_213_824, total=17_163_091_968)
+    monkeypatch.setattr("memnc.vram_probe.SYSFS_DRM", tmp_path)
+    from memnc.model_manager import ModelManager
+
+    health = ModelManager("n", "http://127.0.0.1:11434").collect_health()
+    assert health.gpu.vram_free_mb == pytest.approx(
+        (17_163_091_968 - 16_214_548_480) / 2**20, rel=1e-3
+    )
+    assert len(health.gpu.cards) == 2
+    assert health.gpu.cards[0].vram_free_mb < health.gpu.cards[1].vram_free_mb
