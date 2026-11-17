@@ -109,7 +109,9 @@ async def test_broadcast_swallows_delivery_errors():
 
 def _observer():
     observer = TelegramObserver.__new__(TelegramObserver)
-    observer.settings = type("S", (), {"telegram_verbose": False})()
+    observer.settings = type(
+        "S", (), {"telegram_verbose": False, "telegram_quiet_progress": False}
+    )()
     observer._last_state = {}
     observer._announced = set()
     return observer
@@ -168,6 +170,41 @@ async def test_digest_verbose_always_broadcasts():
     obs.settings = type("S", (), {"telegram_verbose": True})()
     assert obs._digest_event(envelope()) is True
     assert obs._digest_event(envelope()) is True
+
+
+async def test_digest_quiet_progress_drops_routine_transitions():
+    obs = _observer()
+    obs.settings = type(
+        "S", (), {"telegram_verbose": False, "telegram_quiet_progress": True}
+    )()
+    assert obs._digest_event(envelope()) is False  # CODING transition dropped
+    assert (
+        obs._digest_event(
+            envelope(payload={"event": "claimed", "detail": "", "state": "CLAIMED"})
+        )
+        is False
+    )
+    # terminal and action states still broadcast
+    assert (
+        obs._digest_event(
+            envelope(payload={"event": "done", "detail": "", "state": "DONE"})
+        )
+        is True
+    )
+    wait = envelope(
+        payload={"event": "wait_input", "detail": "needs human", "state": "WAIT_INPUT"}
+    )
+    assert obs._digest_event(wait) is True
+
+
+async def test_digest_quiet_progress_still_tracks_state():
+    obs = _observer()
+    obs.settings = type(
+        "S", (), {"telegram_verbose": False, "telegram_quiet_progress": True}
+    )()
+    obs._digest_event(envelope())  # CODING, suppressed
+    tid = envelope()["task_id"]
+    assert obs._last_state.get(tid) == "CODING"
 
 
 def test_digest_ignores_non_task_events():

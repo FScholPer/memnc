@@ -110,6 +110,18 @@ def allowed_chats(allow: str) -> set[str]:
 
 MIN_TASK_PREFIX = 6
 
+# Quieter digest: progress states that never need operator action. Their
+# transitions are suppressed (TELEGRAM_QUIET_PROGRESS, default on); terminal
+# states and WAIT_INPUT still broadcast.
+ROUTINE_PROGRESS_STATES = {
+    "RECEIVED",
+    "CLAIMED",
+    "PLANNING",
+    "CODING",
+    "CRITIQUE",
+    "REVISE",
+}
+
 
 def resolve_task_id(prefix: str, snapshots: list[dict[str, Any]]) -> tuple[str, list[str]]:
     """Resolve a (possibly short) task-id prefix against known snapshots.
@@ -509,6 +521,14 @@ class TelegramObserver:
         state = payload.get("state") or envelope.get("state") or "?"
         task_id = envelope.get("task_id", "")
         if not task_id:
+            return False
+        # Quieter digest (P1 item 8): routine progress transitions are dropped
+        # entirely -- the New-task card already announced the task, and the
+        # terminal/action states (DONE/FAILED/CANCELLED/WAIT_INPUT) still
+        # broadcast, so nothing actionable is lost.
+        quiet = getattr(self.settings, "telegram_quiet_progress", True)
+        if quiet and state.upper() in ROUTINE_PROGRESS_STATES:
+            self._last_state[task_id] = state
             return False
         if state != self._last_state.get(task_id):
             self._last_state[task_id] = state

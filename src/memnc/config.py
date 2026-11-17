@@ -245,6 +245,10 @@ class Settings(BaseSettings):
     telegram_allow: str = ""
     telegram_poll_s: int = 25
     telegram_verbose: bool = False
+    # Quieter digest: suppress routine progress-state transitions (RECEIVED/
+    # PLANNING/CODING/CRITIQUE/REVISE); only terminal + WAIT_INPUT + failure
+    # details still broadcast. Set TELEGRAM_QUIET_PROGRESS=0 for the full stream.
+    telegram_quiet_progress: bool = True
     telegram_roster_updates: bool = False
 
     def model_for(self, role: Role) -> str:
