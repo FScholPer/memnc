@@ -381,3 +381,17 @@ def test_delete_forced_claimed_entry():
     asyncio.run(store.claim(task.id, "drv"))
     assert asyncio.run(store.delete(task.id, force=True)) is True
     assert asyncio.run(store.get(task.id)) is None
+
+
+def test_list_empty_bucket_raises_no_keys() -> None:
+    """Live regression: an empty KV bucket raises NoKeysError from keys(), not []."""
+    from nats.js.errors import NoKeysError
+
+    store, js = _store()
+
+    async def boom() -> list:
+        raise NoKeysError()
+
+    js.kv.keys = boom  # type: ignore[method-assign]
+    assert asyncio.run(store.list()) == []
+    assert asyncio.run(store.next_claimable("driver-a")) is None

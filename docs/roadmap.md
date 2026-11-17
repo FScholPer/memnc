@@ -2118,7 +2118,16 @@ mesh attempts are followed by backlog strong-retries that carry the work
 forward; blocking on them deadlocked the driver (observed 2026-11-16, 4
 planned entries idle for hours). Unknown dep ids (neither store) stay
 blocked, conservative. Follow-ups: root-cause intermittent
-`driver error: nats: no keys found` (DONE 2026-11-17, commit 771a2b8 —
+`driver error: nats: no keys found` (DONE 2026-11-17 —
+two causes: (1) auth, commit 771a2b8: the server runs H4 NKey-only auth, the
+legacy NATS_TOKEN in .env gets 'Authorization Violation'; backlog-driver.sh
+now exports NATS_NKEYS_SEED=secrets/operator.nk. (2) code bug, fixed: an
+empty KV bucket makes nats-py's `keys()` raise `NoKeysError`, which is NOT a
+subclass of `NotFoundError` — `BacklogStore.list()` caught only the latter,
+so the NoKeysError escaped into the driver loop as `driver error: nats: no
+keys found`. Fixed `BacklogStore.list()` plus both `PheromoneStore`
+`keys()` sites (decay + noval sweep); regression tests pin the empty-bucket
+path. Also:
 the server runs H4 NKey-only auth, the legacy NATS_TOKEN in .env gets
 'Authorization Violation'; backlog-driver.sh now exports
 NATS_NKEYS_SEED=secrets/operator.nk); clean old night/smoke
