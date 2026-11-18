@@ -31,6 +31,7 @@ from .roles import (
     build_consult_user_prompt,
     build_user_prompt,
 )
+from .scheduling import fit, placement_for, rest_split
 from .schema import (
     ROLE_OUTPUT as _OUTPUT_SCHEMA,
 )
@@ -98,6 +99,34 @@ async def fetch_disk_models(base_url: str) -> list[str]:
     except Exception:  # noqa: BLE001 - roster advertisement is best effort
         log.debug("disk model fetch failed", exc_info=True)
         return []
+
+
+async def fetch_model_sizes(base_url: str) -> dict[str, int]:
+    """15.4.6 fit gate: model disk bytes from the Ollama store listing.
+
+    Returns name -> size in bytes; missing entries mean the size source has
+    no data for that model. Best effort: failures return {} and the fit gate
+    runs in lenient mode.
+    """
+    import json as _json
+    import urllib.request
+
+    def _fetch() -> dict[str, int]:
+        with urllib.request.urlopen(  # noqa: S310 - configured internal URL
+            f"{base_url.rstrip('/')}/api/tags", timeout=5
+        ) as resp:
+            data = _json.loads(resp.read())
+        return {
+            m["name"]: int(m.get("size", 0))
+            for m in data.get("models", [])
+            if m.get("size")
+        }
+
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:  # noqa: BLE001 - size source is best effort
+        log.debug("model size fetch failed", exc_info=True)
+        return {}
 
 
 async def load_model(base_url: str, model: str, keep_alive: str = "30m") -> bool:
@@ -347,6 +376,77 @@ class Worker:
                     except Exception:  # noqa: BLE001
                         pass
 
+    async def _fit_check(self, base_url: str, model: str) -> tuple[bool, str]:
+        """15.4.6 admission gate: reject a load that fits no card.
+
+        Best effort end to end: a failed VRAM probe or size source runs the
+        gate lenient (a measurement outage must not brick every load).
+        """
+        if not self.settings.vram_fit_gate:
+            return True, "gate-off"
+        size = (await fetch_model_sizes(base_url)).get(model)
+        min_free = 0
+        try:
+            from memnc.vram_probe import probe_gpus
+
+            cards = probe_gpus()
+            if cards:
+                min_free = min(total - used for used, total in cards)
+            else:
+                from memnc.vram_probe import probe_vram
+
+                used, total = probe_vram()
+                min_free = total - used
+        except Exception:  # noqa: BLE001 - probe failure degrades to lenient
+            log.debug("fit gate vram probe failed", exc_info=True)
+        res = fit(
+            min_free_bytes=min_free,
+            model_bytes=size,
+            placement=placement_for(model, self.settings.moe_hot_cache_models),
+            hot_cache_capable=self.settings.moe_hot_cache_capable,
+            strict=False,
+        )
+        if not res.fits:
+            log.warning(
+                "model load rejected by fit gate: %s (%s)",
+                model,
+                res.reason,
+                extra={"node": self.settings.node_name, "model": model},
+            )
+        return res.fits, res.reason
+
+    async def _post_load_check(self, base_url: str, model: str) -> None:
+        """15.4.6: detect a rest-split load and discard it.
+
+        If the resident footprint is far below the weight bytes, the loader
+        spilled to system RAM; unload and log the degraded marker. Best
+        effort, never raises.
+        """
+        if not self.settings.vram_fit_gate:
+            return
+        try:
+            size = (await fetch_model_sizes(base_url)).get(model)
+            if not size:
+                return
+            from memnc.vram_probe import fetch_loaded_models
+
+            loaded = {
+                e["model"]: e.get("vram_mb", 0.0)
+                for e in fetch_loaded_models(base_url)
+            }
+            vram_bytes = loaded.get(model, 0.0) * 2**20
+            if rest_split(vram_bytes, size):
+                log.warning(
+                    "degraded:rest-split detected, unloading %s "
+                    "(resident %.1f MB vs %.1f MB weights)",
+                    model,
+                    vram_bytes / 2**20,
+                    size / 2**20,
+                )
+                await unload_model(base_url, model)
+        except Exception:  # noqa: BLE001 - post-load check is best effort
+            log.debug("post-load rest-split check failed", exc_info=True)
+
     # -- T7.5: model decisions (plan §14.7) ----------------------------------
     async def _model_decision_loop(self) -> None:
         """Watch approve/reject decisions; on approve, load the model from disk.
@@ -390,7 +490,10 @@ class Worker:
             ok = await pull_model(base_url, request.model)
             if ok:
                 self._disk_models = await fetch_disk_models(base_url)
-                await load_model(base_url, request.model)
+                fits, _reason = await self._fit_check(base_url, request.model)
+                if fits:
+                    await load_model(base_url, request.model)
+                    await self._post_load_check(base_url, request.model)
             log.info(
                 "model pull executed",
                 extra={
@@ -431,7 +534,10 @@ class Worker:
             # Not on this node's disk — another node owns the load.
             await message.ack()
             return
-        ok = await load_model(base_url, request.model)
+        fits, _reason = await self._fit_check(base_url, request.model)
+        ok = await load_model(base_url, request.model) if fits else False
+        if ok:
+            await self._post_load_check(base_url, request.model)
         log.info(
             "model decision executed",
             extra={
