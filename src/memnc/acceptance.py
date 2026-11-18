@@ -30,8 +30,29 @@ import signal
 from dataclasses import dataclass
 from pathlib import Path
 
-CHECK_TIMEOUT_S = 30
+_CHECK_TIMEOUT_S = 30
 _MAX_EVIDENCE = 2000
+
+
+def _resolve_rel(root: Path, raw: str) -> Path | None:
+    """Resolve a workspace-relative path. Planners sometimes emit absolute
+    container paths (`/workspace/foo`) — normalize those to workspace-relative
+    (the workspace root IS /workspace in the container). Any remaining escape
+    via `..` is rejected. Returns None when the path escapes root."""
+    stripped = raw.strip().lstrip("/")
+    if not stripped:
+        return None
+    parts = stripped.split("/")
+    if parts and parts[0].lower() == "workspace":
+        parts = parts[1:]
+        stripped = "/".join(parts)
+    if not stripped:
+        return None
+    resolved = (root / stripped).resolve()
+    root_resolved = root.resolve()
+    if resolved != root_resolved and root_resolved not in resolved.parents:
+        return None
+    return resolved
 
 _SUBPROC_ENV = {
     k: os.environ[k]
@@ -103,7 +124,9 @@ async def run_acceptance(criteria: list[AcceptanceCriterion], root: Path) -> Acc
 
 async def _check_file_exists(args: list[str], root: Path) -> CheckResult:
     line = f"file_exists {args[0]}"
-    path = root / args[0]
+    path = _resolve_rel(root, args[0])
+    if path is None:
+        return CheckResult(line, False, f"invalid path (escapes workspace): {args[0]}")
     if path.is_file():
         return CheckResult(line, True, f"{args[0]} exists ({path.stat().st_size} bytes)")
     return CheckResult(line, False, f"{args[0]} missing from workspace")
@@ -115,7 +138,9 @@ async def _check_file_min_size(args: list[str], root: Path) -> CheckResult:
         min_bytes = int(args[1])
     except ValueError:
         return CheckResult(line, False, f"invalid byte count {args[1]!r}")
-    path = root / args[0]
+    path = _resolve_rel(root, args[0])
+    if path is None:
+        return CheckResult(line, False, f"invalid path (escapes workspace): {args[0]}")
     if not path.is_file():
         return CheckResult(line, False, f"{args[0]} missing from workspace")
     size = path.stat().st_size
@@ -128,7 +153,9 @@ async def _check_file_contains(args: list[str], root: Path) -> CheckResult:
         pattern = re.compile(args[1])
     except re.error as exc:
         return CheckResult(line, False, f"invalid regex: {exc}")
-    path = root / args[0]
+    path = _resolve_rel(root, args[0])
+    if path is None:
+        return CheckResult(line, False, f"invalid path (escapes workspace): {args[0]}")
     if not path.is_file():
         return CheckResult(line, False, f"{args[0]} missing from workspace")
     try:
@@ -152,7 +179,7 @@ async def _run_argv(argv: list[str], root: Path) -> tuple[int, str, str]:
     except FileNotFoundError:
         return -1, "", f"binary not found: {argv[0]}"
     try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=CHECK_TIMEOUT_S)
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=_CHECK_TIMEOUT_S)
     except TimeoutError:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
@@ -178,11 +205,13 @@ async def _check_ffprobe_duration(args: list[str], root: Path) -> CheckResult:
         min_seconds = float(args[1])
     except ValueError:
         return CheckResult(line, False, f"invalid duration {args[1]!r}")
-    path = root / args[0]
+    path = _resolve_rel(root, args[0])
+    if path is None:
+        return CheckResult(line, False, f"invalid path (escapes workspace): {args[0]}")
     if not path.is_file():
         return CheckResult(line, False, f"{args[0]} missing from workspace")
     code, out, err = await _run_argv(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", args[0]],
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
         root,
     )
     if err.strip() == "TIMEOUT":
