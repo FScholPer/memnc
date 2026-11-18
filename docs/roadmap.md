@@ -740,6 +740,62 @@ Scheduled offline walk: decay, consolidate corroborated traces,
 archive contradicted edges, refresh god-node rankings. Human-approved
 design first; optional proposal digest for human sign-off.
 
+**Step 6 design (written 2026-11-18, build pending — human sign-off = enable
+the flag).** The dreaming job is a scheduled, deterministic, offline walk over
+the durable knowledge stores. STATUS: DESIGN approved as written; build step 1 (pure-logic core
+`src/memnc/dreaming.py` + tests: clustering, pattern/supersession/ranking
+bullets, `dream_bullets()`) committed, dormant — nothing runs without the
+operator enabling `dreaming_enabled`. Next: step 2 job wrapper
+(`python -m memnc.dreaming --dry-run/--apply`), step 3 systemd unit+timer,
+step 4 `meshctl dream` verb.
+
+- **Stores walked (all already shipped):** `mesh_observations` KV (TaskObservation
+  deposits), the file-backed experience store (experience_store.py bullets),
+  the `mesh_pheromones` field, the synergy/success aggregation (synergy.py).
+- **Timing:** systemd user timer on the host node, nightly, one invocation.
+  Skip-if-busy gate: the job reads task snapshots first and SKIPS (logs, no
+  error) while any task is in a claim state — it must never race the CAS
+  layer. Secondary single-writer guard: KV lock key `dream.lock` (timestamp
+  claim, stale-claim reclaim, backlog-style) so a manual rerun cannot double
+  consolidate.
+- **Passes (in order, each pass deterministic, no model calls, `now` injectable):**
+  1. *Consolidate:* cluster observations by token similarity (reuse
+     `experience.jaccard` / `observation_similarity`, threshold = the existing
+     corroboration threshold); per cluster emit ONE task-pattern bullet via
+     experience_store `merge()` — "task-type T: n runs, success rate, best
+     route/model pair, dominant failure cause". Deterministic bullet text, no
+     free prose from models. These bullets feed `ranked_attention` corroboration
+     and act as pheromone seed deposits for future routing.
+  2. *Contradiction sweep:* within a task-type cluster, if the newest
+     observations flip the previously best route/synergy pair, append a
+     supersession bullet (old pattern explicitly superseded with the evidence
+     line). The old bullet stays — consolidation, never deletion.
+  3. *Archive accounting:* observations older than the retention window are
+     counted and reported; their KV entries are NOT deleted (KV history keeps
+     them). Deletion stays out of dreaming entirely.
+  4. *Rankings refresh:* recompute synergy metrics + server success ratios and
+     write a summary bullet per changed ranking (only when changed, to keep
+     near-duplicate folding cheap).
+- **Decay discipline:** pheromone decay already runs hourly in the orchestrator
+  `_pheromone_loop`; dreaming does NOT double-decay the field. Attention decay
+  lives only in read paths (`ranked_attention` half-life). Dreaming is additive
+  over the experience store only.
+- **Output + sign-off:** the job appends its own bullets under topic
+  `dream.<run-id>` and prints a digest via `meshctl dream [--dry-run]`
+  (dry-run: no store writes, prints the proposed bullets). A Telegram digest
+  broadcast is a separate config flag, default OFF (noise rule: only real
+  outcomes reach the chat). Enabling `dreaming_enabled` is the human approval
+  step; `--dry-run` lets the operator audit before enabling.
+- **Guardrails:** best-effort end to end (never raises into the pipeline); the
+  only writes are monotone experience-store appends through the guarded
+  `merge()`/`compress()` path (brevity-bias guard unchanged); no secrets, no
+  hardware facts in bullets; bullet text English only.
+- **Build order:** (1) pure-logic module `src/memnc/dreaming.py` (cluster +
+  bullet generation, sync functions, unit tests without network); (2) job
+  wrapper `python -m memnc.dreaming --dry-run/--apply` (Bus, lock, store
+  append); (3) systemd unit + timer under `scripts/systemd/`; (4) `meshctl
+  dream` read verb. Each step extends/tests/hardens separately.
+
 **Step 7 — Distributed graphs + god nodes (later).**
 Per-node graph shards, selective merge, god-node risk hook in claims.
 
@@ -1653,9 +1709,13 @@ evidence for the Einzel-LoRA > Multi thesis.
    rate_limiter). Caveats, per design: single rep0 pass (no statistical
    weight), the gen1 prompt carries a task-specific "rate limiter" rule —
    overfitting risk; the generalizable core is the workspace-verify +
-   complete-files + self-verify trio. Next (deferred, needs an unattended
-   multi-hour window): a multi-rep validation run of the gen1 prompt on the
-   full hard tier before promoting it into roles.py.
+   complete-files + self-verify trio. VALIDATION PATH (2026-11-18): the bench
+   runner gained `--prompt-role/--prompt-file` (prompt_override contextmanager,
+   swaps one role's SYSTEM_PROMPTS entry for the suite and restores it; tests
+   in tests/test_bench_prompt_override.py). A multi-rep validation of the gen1
+   coder prompt (arm B, full hard tier, 3 reps vs the B baseline 38/40 @ 1910
+   tok) runs as workspace/bench-b-gen1-hard.jsonl once the in-flight arm P run
+   frees the lane; promote into roles.py only if B+gen1 matches or beats B.
 5. ACE slice: automated Erfahrungsspeicher — append-only itemized bullets,
    deterministic merge, brevity-bias + context-collapse guards.
    STATUS: BUILT (2026-11-15) — src/memnc/experience_store.py (design in
@@ -2371,23 +2431,12 @@ hard tasks only, not a default. Guardrails: no new authority path
 (proposals/critiques are data, never executed); shared `coder_timeout_s`
 budget; no pytest.mark decorators (repo content-filter rule).
 
-## 16.6 design-learned-verifier.md (Flow-DPO step 2 — design, not built)
-
-Why: deterministic checkers exist only for bench tasks; live verify-gate
-relies on the critic alone (fabrication incident 2026-11-15: critic
-approved an empty result). V1 (buildable now): cheap linear scorer —
-features from the files dict (file count, bytes, lines, AST-parse flag,
-comment fraction, duplicate ratio, placeholder detection: TODO/pass/empty/
-fabricated-metric constants), logistic regression, pure-python optimizer,
-weights as JSON artifact, `verify(files) -> score`. Honest scope: catches
-SHAPE failures (fabrication), never semantic wrongness — complements, never
-replaces, the checkers. V2: LoRA verifier on the shared base (Flow-DPO real
-step, rung toward growing-LoRA), blocked on user compute approval + a
-`record_solutions=True` hard-tier run (current 120-rep run has 0 recorded
-solutions). Non-goals: no verifier output gates the bench loop (leakage
-rule); no downloads without explicit approval; no sklearn/torch for V1.
-
-## 16.7 docs/experience.md (Erfahrungsspeicher — folded into this file)
+#!BREAK_MARKER!## 16.6 Learned Verifier V1 (SHIPPED)
+- **Implementation**: Lightweight linear scorer using Python stdlib.
+- **Details**: Detects "shape" failures (empty, stubs, fabrication-style text) using basic file metrics and a simple logistic regression.
+- **Corpus**: Small, training set derived from actual repo files and patterns from the KugelAudio incident.
+- **Note**: This is a heuristic shape-detector, not a semantic validator.
+ 16.7 docs/experience.md (Erfahrungsspeicher — folded into this file)
 
 Was the curated "what we know about our models" store (framing
 2026-11-14: shared Erfahrungspeicher — which models are good at what, which
