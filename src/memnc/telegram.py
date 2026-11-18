@@ -56,6 +56,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("state", "task state", "<task-id>"),
             ("trace", "debate trace + routing", "<task-id>"),
             ("obslast", "recent observations", "[model] [limit]"),
+            ("synergy", "model-pair synergy table", "[limit]"),
             ("mreqs", "model requests", ""),
             ("mrep", "model reputation", ""),
         ],
@@ -432,6 +433,19 @@ def format_model_requests(requests: list[ModelRequest]) -> str:
     return "\n".join(lines)
 
 
+def format_pending_request(r: ModelRequest) -> str:
+    """Card for one newly pending model request (pending-request push)."""
+    disk = f" disk@{','.join(r.nodes_disk)}" if r.nodes_disk else ""
+    lines = [f"model request pending: {r.request_id}"]
+    lines.append(f"{r.action} {r.model}{disk}")
+    if r.task_id:
+        lines.append(f"task: {r.task_id}")
+    if r.reason:
+        lines.append(f"reason: {r.reason}")
+    lines.append("decide: buttons or /mreqs")
+    return "\n".join(lines)
+
+
 def failure_suggestion(snapshot) -> str:
     """P2 item 9: the orchestrator's alternative-model suggestion from the
     snapshot history (last ``model.suggest`` entry), if any. Duck-typed:
@@ -463,8 +477,24 @@ class TelegramObserver:
         self._last_state: dict[str, str] = {}
         self._announced: set[tuple[str, str, str]] = set()
         self._seen_nodes: set[str] = set()
+        self._seen_requests: set[str] = set()
+        self._pending_submit: set[str] = set()
 
     # -- outbound ----------------------------------------------------------
+    async def _push_pending_requests(self) -> None:
+        """Pending-request push (14.11 P0 remnant): announce newly pending
+        model requests once, config-gated (default OFF -- only messages that
+        need the operator's action are pushed)."""
+        if not getattr(self.settings, "telegram_pending_requests", False):
+            return
+        for r in await self.bus.list_model_requests():
+            if r.status == "pending" and r.request_id not in self._seen_requests:
+                self._seen_requests.add(r.request_id)
+                await self.broadcast(
+                    format_pending_request(r),
+                    markup=mreq_buttons(r.request_id),
+                )
+
     async def broadcast(self, text: str, markup: dict[str, Any] | None = None) -> None:
         for chat in sorted(self.chats):
             try:
@@ -582,6 +612,7 @@ class TelegramObserver:
                         parts.append("left: " + ", ".join(left))
                     await self.broadcast("mesh: " + "; ".join(parts))
                 self._seen_nodes = current
+                await self._push_pending_requests()
             except Exception as exc:  # noqa: BLE001 - observer must never disturb the mesh
                 log.warning(
                     "roster poll failed: %s", _redact(str(exc), getattr(self.bot, "token", ""))
@@ -590,7 +621,25 @@ class TelegramObserver:
 
     # -- inbound: commands --------------------------------------------------
     async def handle_command(self, chat: str, text: str) -> None:
-        parts = text.strip().split(maxsplit=2)
+        stripped = text.strip()
+        # 14.11 item 11 (drafted submit): armed-draft state lives per chat.
+        # getattr keeps __new__-built fakes in older tests working.
+        pending = getattr(self, "_pending_submit", None)
+        if pending is None:
+            pending = set()
+            self._pending_submit = pending
+        if not stripped.startswith("/"):
+            # Plain chat text is not a command. Only when a guided /submit is
+            # armed for this chat does the next plain message become the task
+            # text; otherwise it is ignored (no accidental task creation).
+            if pending is not None and chat in pending and stripped:
+                pending.discard(chat)
+                await self._control(chat, "submit", stripped)
+            return
+        if pending is not None:
+            # any explicit command aborts an armed draft (see guided submit)
+            pending.discard(chat)
+        parts = stripped.split(maxsplit=2)
         if not parts:
             return
         cmd = parts[0].lstrip("/").lower()
@@ -620,6 +669,16 @@ class TelegramObserver:
             observations = await self.bus.list_observations()
             model = parts[1].strip() if len(parts) >= 2 else None
             await self.bot.send_message(chat, format_observations(observations, model))
+        elif cmd == "synergy":
+            from memnc.synergy import compute_synergy_metrics, format_synergy
+
+            observations = await self.bus.list_observations()
+            limit = 10
+            if len(parts) >= 2 and parts[1].strip().isdigit():
+                limit = int(parts[1].strip())
+            await self.bot.send_message(
+                chat, format_synergy(compute_synergy_metrics(observations), limit)
+            )
         elif cmd in ("node", "nodes"):
             # M11a: query the mesh API, not local state — this is the
             # first Telegram command routed through mesh.api.request.*.
@@ -679,7 +738,25 @@ class TelegramObserver:
             if tid:
                 await self._control(chat, "decide", f"{tid} {parts[1]}")
         elif cmd in ("submit", "cancel", "retry"):
-            argument = parts[1] if len(parts) >= 2 else ""
+            if cmd == "submit" and len(parts) < 2:
+                # 14.11 item 11 (drafted submit): /submit with no argument
+                # arms the guided flow and asks for the task text via the
+                # Bot API question mode (ForceReply). The next plain message
+                # from this chat is taken as the task text.
+                self._pending_submit.add(chat)
+                await self.bot.send_message(
+                    chat,
+                    "Send the task text in your next message (any /command"
+                    " aborts the draft).",
+                    markup={"force_reply": True, "selective": True},
+                )
+                return
+            self._pending_submit.discard(chat)
+            if cmd == "submit":
+                # task text may contain multiple words -- keep them all
+                argument = " ".join(parts[1:]) if len(parts) >= 2 else ""
+            else:
+                argument = parts[1] if len(parts) >= 2 else ""
             if cmd == "retry" and len(parts) >= 3:
                 # Retry flags ride in the third split part ("--model <name>").
                 argument = f"{argument} {parts[2]}"
