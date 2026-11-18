@@ -47,7 +47,8 @@ def _resolve_rel(root: Path, raw: str) -> Path | None:
         parts = parts[1:]
         stripped = "/".join(parts)
     if not stripped:
-        return None
+        # the workspace root itself (e.g. criterion "file_exists /workspace")
+        return root
     resolved = (root / stripped).resolve()
     root_resolved = root.resolve()
     if resolved != root_resolved and root_resolved not in resolved.parents:
@@ -129,6 +130,8 @@ async def _check_file_exists(args: list[str], root: Path) -> CheckResult:
         return CheckResult(line, False, f"invalid path (escapes workspace): {args[0]}")
     if path.is_file():
         return CheckResult(line, True, f"{args[0]} exists ({path.stat().st_size} bytes)")
+    if path.is_dir():
+        return CheckResult(line, True, f"{args[0]} exists (directory)")
     return CheckResult(line, False, f"{args[0]} missing from workspace")
 
 
