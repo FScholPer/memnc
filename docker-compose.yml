@@ -202,7 +202,13 @@ services:
       ROLE: critic
       NODE_NAME: ${NODE_NAME:-node-a}-critic
       NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-critic.nk
-      MODEL_CRITIC: ${MODEL_CRITIC:-llama3.1:8b}
+      # Critic rides the always-on llama.cpp HIP server (:8098, model fully
+      # in VRAM) instead of Ollama — Gemma-4-31B Q4 (~20 GB) cannot fit a
+      # 16 GiB card, Ollama CPU-falls-back to ~2 t/s. Nodes without :8098
+      # override CRITIC_* in their .env.
+      INFERENCE_PROVIDER: ${CRITIC_INFERENCE_PROVIDER:-openai}
+      INFERENCE_BASE_URL: ${CRITIC_INFERENCE_BASE_URL:-http://host.docker.internal:8098}
+      MODEL_CRITIC: ${CRITIC_MODEL:-gemma4-31b}
     depends_on:
       nats:
         condition: service_healthy
