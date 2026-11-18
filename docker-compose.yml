@@ -220,7 +220,10 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW: ${TELEGRAM_ALLOW:-}
       TELEGRAM_POLL_S: ${TELEGRAM_POLL_S:-25}
-    volumes: []   # read-only mirror: no workspace access
+    volumes:
+      # Read-only mirror: no workspace/data access, but the NKey seed
+      # (NATS_NKEYS_SEED=/secrets/<node>-telegram.nk) must stay mounted.
+      - ./secrets:/secrets:ro
     depends_on:
       nats:
         condition: service_healthy
