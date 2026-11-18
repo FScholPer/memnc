@@ -199,6 +199,9 @@ class Settings(BaseSettings):
         argv[0] = str(Path(argv[0]).expanduser())
         return argv
     experience_store_path: str = "data/experience-store.json"
+    # 14.13 Step 6: the dreaming job is dormant until the operator flips
+    # this flag (the human sign-off the roadmap design asks for).
+    dreaming_enabled: bool = False
     experience_from_observations: bool = False
     # 14.15.10: pheromone evaporation. The orchestrator applies decay every
     # pheromone_decay_interval_s seconds (0 disables the job); rho is the
