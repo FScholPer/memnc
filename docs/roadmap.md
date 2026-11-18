@@ -2,6 +2,13 @@
 
 ## Built
 
+- **2026-11-18 — Drafted-submit flow (14.11 item 11)**: `/submit` with no
+  argument starts a guided prompt (Bot API question mode / ForceReply); the
+  next plain chat message becomes the task via the same `task.submit` API
+  write path, any other `/command` aborts the draft, and plain chat text
+  without an armed draft stays non-commands. Bonus fix: `/submit <text>` no
+  longer truncates multi-word task text. Tests in
+  `tests/test_telegram_draft.py`.
 - **2026-11-16 — Worker-side strategy honor (14.15.10 selection consumption)**:
   the worker-driven pipeline now HONORS a non-default routing edge. When the
   orchestrator selected the self-reflect edge (`routing_edge == "B"`), the
@@ -40,6 +47,19 @@
   critic must attempt a concrete refutation before any verdict; unevidenced
   approvals are rejected as critiques, loop capped at 2 revisions. Evidence
   gate unit-tested; bench run pending.
+
+- **2026-11-17 — Synergy dashboard views (§14.13 step 3)**: read verb
+  `obs.synergy` on the mesh API (computed from deposited observations),
+  console "Synergy (model pairs)" table via the standard API-client/fallback
+  path, and Telegram `/synergy [limit]` reusing `format_synergy`. Measurement
+  only — no routing decisions. Tests in `tests/test_synergy.py` (5 new).
+
+- **2026-11-17 — Pending-request push (14.11 P0 remnant)**: `Settings.
+  telegram_pending_requests` (env `TELEGRAM_PENDING_REQUESTS`, default OFF)
+  makes the Telegram observer broadcast each newly pending model request
+  once as a card with Approve/Reject buttons (`_push_pending_requests()` in
+  the roster poll). Only action-needed messages are pushed, per the standing
+  broadcast rule. Tests in `tests/test_telegram_observer.py` (4 new).
 
 - **2026-11-15 — Structured message tuple (15.3 item 2)**: TalkHop-style
   communication tuple (message / background / intermediate_output) built
@@ -468,7 +488,7 @@ revisions, sample size per unordered model pair), exposed as
 `meshctl synergy [--limit N]` (verified live against the mesh KV).
 Console dashboard + optional Telegram digest still open. No routing
 decisions — measurement first (
-§14.13 Steps 1–4 all DONE (Step 4 similarity/ranked attention: `experience.py`, commit below); console dashboard + Telegram digest still open |
+§14.13 Steps 1–4 all DONE (Step 4 similarity/ranked attention: `experience.py`, commit below); console dashboard + Telegram digest DONE (2026-11-17 night-builder: read verb `obs.synergy` in `api.py`, console "Synergy (model pairs)" table via the standard API-client/fallback path, Telegram `/synergy [limit]` reusing `format_synergy`) |
 | B2 | Role-specific LoRA adapters | One adapter slot per role (planner/coder/critic) on a shared base; trained on TaskObservations from B1. **Training backend exists as a standalone vendored copy** (Unsloth QLoRA+EWC on Qwen2.5-7B, Fisher tooling, GGUF/Ollama hot-swap — proven loop from the memory project, 2026-09). B2 = data bridge (observations → per-role splits), not a new training stack. Dense LoRAs only: MoE-expert LoRAs are not servable on AMD/Vulkan. | §19 P0 (MoRSE) |
 | B3 | Leader synthesis layer (MLPO pattern, no RL yet) | Orchestrator/critic prompt layer: leader receives all worker outputs with an explicit verify-and-backtrack instruction; difficulty filter skips routing tasks every available worker solves. Orchestration code, not training. | §18 + §19 P0 (MLPO, arXiv 2507.08960) |
 | B4 | Fisher-Merge pipeline | mergekit-based merge of role adapters with a subspace-divergence check (principal angles) before merging; naive averaging is known to degrade (MoRSE result). | §19 P0 + synthesis.md §5 |
@@ -558,7 +578,7 @@ The Experience Graph is designed to capture, store, and eventually leverage the 
 
 ### Step 3: Team-Synergy Aggregation (Measurement)
 **Goal:** Surface metrics that quantify how well different model pairings/roles are performing.
-**Status:** 3.1 + CLI table DONE (`src/memnc/synergy.py`, `meshctl synergy`); console dashboard + Telegram digest open. (Crucial: No behavioral changes at this stage.)
+**Status:** 3.1 + CLI table DONE (`src/memnc/synergy.py`, `meshctl synergy`); console dashboard + Telegram digest DONE (2026-11-17: `obs.synergy` API verb, console table, Telegram `/synergy`). (Crucial: No behavioral changes at this stage.)
 
 | Task | Description | Targeted Files | Interface/Key Changes | Acceptance Criteria |
 | :--- | :--- | :--- | :--- | :--- |
@@ -656,27 +676,27 @@ today.
    (`mr:<req-id>:approve|reject`) and node buttons (`nd:<node>:pause|resume`)
    parse through a fixed verb table; every press still rides the grant-checked
    `_control`/`_decide` API path (no new authority path), unauthorized chats
-   only get the callback answered. Model-request/node cards are handled but
-   not yet auto-announced — pending-request push is a later slice.
+   only get the callback answered. Model-request cards are now auto-announced
+   (pending-request push, DONE 2026-11-17: `TELEGRAM_PENDING_REQUESTS` config,
+   default OFF, each pending request broadcast once with Approve/Reject
+   buttons via `_push_pending_requests()` in the roster poll); node pause/
+   resume cards stay manual-only.
    Fixes: copying 20-hex IDs on mobile, typo risk, slow approval loop.
 2. **Short task IDs everywhere** — DONE (slice 1). `resolve_task_id()`
    accepts unambiguous prefixes (≥6 chars, exact full ids always win) for
    `state`, `trace`, `cancel`, `retry`, `gate`; ambiguity lists the candidate
    prefixes, short/unknown prefixes say why. Fixes: ID copy/paste round trips.
-3. **`/status` one-shot digest.** One command answering "is everything
-   fine?": tasks by state (count + the interesting ones), nodes with
-   heartbeat age and current claim, pending model requests, models near
-   retirement. Replaces composing `/tasks` + `/roster` + `/mreqs` +
-   `/mrep`. The console's roster data model is the source; the digest is
-   a formatter, not a new data path.
-4. **Failure-first notifications with the cause.** Today a failed task
-   arrives as one event line among many; the reason ("invalid coder
-   output") hides in the trace. When a task reaches a terminal state,
-   push a short verdict card: what failed, which role/model ran it, the
-   last critic objection, and *what to do* (`/retry <id>` or, if the
-   route shows the weak model, a one-tap "pull a stronger coder" button
-   that files the ModelRequest). Fixes: silent failure discovery,
-   model-mismatch invisible → remediation one tap away.
+3. **~~`/status` one-shot digest.~~ DONE 2026-11-17** — `format_status()` +
+   the `status` command answer "is everything fine?" in one card: tasks by
+   state, nodes with heartbeat age and claims, pending model requests,
+   recent failed observations. Data rides the standard API-client path;
+   the digest is a formatter, not a new data path.
+4. **~~Failure-first notifications with the cause.~~ DONE 2026-11-17** —
+   a terminal failure broadcasts a verdict card: title, `cause:` detail
+   from the snapshot, the P2 model-suggestion line ("next try: role:
+   model"), `retry: /retry <id>` and `[Retry][Cancel]` inline buttons
+   (`task_buttons`). Fixes: silent failure discovery, remediation one tap
+   away.
 
 ### P1 — smoother daily loop
 
@@ -753,9 +773,14 @@ data model.
     cards into the console page (and back-buttons into chat). Zero new
     state; pure URL construction once 
 §14.10 lands.
-11. **Drafted-submit flow**: `/submit` with no argument starts a guided
-    prompt (Bot API question mode); plain chat text stays non-commands
-    (no accidental task creation). Fix: new-user error surface.
+11. **Drafted-submit flow — BUILT**: `/submit` with no argument arms a
+    guided draft for the chat and asks for the task text via the Bot API
+    question mode (ForceReply); the next plain message from that chat becomes
+    the task (through the same `task.submit` API write path), any other
+    `/command` aborts the draft, and plain chat text stays non-commands when
+    no draft is armed (no accidental task creation). Also fixed on the way:
+    `/submit <text>` now keeps the full multi-word task text (it previously
+    submitted only the first word). Tests: `tests/test_telegram_draft.py`.
 
 ### Non-goals / guardrails
 
@@ -934,21 +959,23 @@ API client too: collect_state/task detail/control POST go through
 api_request (reads: task.list/node.list + new cap.list/grant.list/
 trust.list/ledger.read verbs; fallback to direct Bus reads if the API
 server is down); node load is part of the resource view.
-Next: M11d NL agent. Channels/human-as-peer from 5a feed into S4
-(approval gate) — S4 and M11b merge.
+M11d NL agent: shipped as src/memnc/api_agent.py + `meshctl ask` (see section 17). Channels/human-as-peer
+from 5a feed into S4 (approval gate) — S4 and M11b merge.
 
 ## P4 — Infra robustness (decided 2026-11-13)
 
 Topology support is DONE (see Built). Open infra slices:
 
-1. **NATS cold-standby backup (Duo topology)**: periodic KV/ledger backup
-   on the active node (nats stream backup / KV export into the nats-data
-   companion), documented promote/restore for the second host. Recovery
-   point = time since last backup; acceptable for a 2-host setup (Raft
-   majority impossible without a 3rd voter). Decision: this is the
-   failover story until the mesh goes productive; a data-less witness
-   (tiny VPS, ~30 MB RAM) is the upgrade path to real automatic failover
-   (Mesh topology, replicas=3).
+1. **NATS cold-standby backup (Duo topology)**: DONE — `meshctl backup`
+   dumps the durable KV buckets, cron `scripts/cold-standby-backup.sh`
+   every 15 min, 14d retention. 2026-11-18 hardening after the H4 NKey
+   migration silently broke the cron (Authorization Violation, no backups
+   for 4 days): the script now authenticates with the operator NKey seed
+   (`NATS_NKEYS_SEED`) instead of the legacy token, forces the loopback
+   URL (the `.env` URL is the compose hostname, unresolvable on the
+   host), and derives the repo root from the meshctl path correctly.
+   `dump_buckets` no longer crashes on an empty bucket (nats-py raises
+   `NoKeysError` on `keys()` — now dumped as `{}`, regression-tested).
 2. **Node update logic**: DONE — deterministic code fingerprints
    (`memnc.version`), orchestrator stamps `mesh_version` into dispatch,
    workers refuse mismatched code when `enforce_node_version` is on
@@ -1568,7 +1595,25 @@ evidence for the Einzel-LoRA > Multi thesis.
    src/memnc/bench/runner.py — planner -> coder -> adversarial critic with an
    evidence gate (approval without counterexample/tried-list is rejected as a
    critique), max 2 revisions, checkers unchanged as final authority.
-   Bench run + report pending (needs the 120-rep full run).
+   MEASURED (2026-11-17, hard-tier 40-row run: 8 tasks x 5 reps): D 30/40
+   (75%, pooled Wilson CI [59.8, 85.8]) at 3030 tok/task mean, 3.45 llm
+   calls — below arm B (38/40 [83.5, 98.6] @ 1910 tok) on BOTH quality and
+   cost. 9/40 attempts died on inference ReadTimeouts (infra noise, counted
+   as failures); weak tasks rate_limiter (2/5) and dijkstra (2/5).
+   RETRY (2026-11-17 night): the 9 infra-failed combos re-ran on two lanes
+   (ollama lane re-failed 3x the same ReadTimeout way at ~2050s; llauncher
+   lane rescued 3: hard_bst rep0, hard_word_ladder rep1, hard_tokenizer
+   rep2; 2 dijkstra reps were still in flight). With retries folded in D
+   stands at 33/40 (82.5%) and the token mean rises to ~4800/task (rescued
+   passes were expensive: 6.7k-22.8k tokens each) — still below arm B
+   (38/40 @ 1910 tok) on BOTH quality and cost.
+   D1 FAILS
+   its qualification gate (>= 7/8 AND < 3000 tok mean — it misses both).
+   D2 (k-evaluator split, strictly more expensive than D1) is disqualified
+   by the 3000-tok cost ceiling. Per the 16.3 decision rule:
+   mesh-as-refiner is DEAD for this task class — mesh stays
+   supervisor-of-one (14.15.3) and the quality difference routes into GEPA
+   prompt evolution (item 4).
 4. GEPA slice: bench-driven prompt evolution over roles.py SYSTEM_PROMPTS.
    STATUS: BUILT (2026-11-15) — src/memnc/bench/gepa.py: failure-driven
    reflective mutation from bench JSONL, Pareto candidate selection (keep
@@ -1581,11 +1626,25 @@ evidence for the Einzel-LoRA > Multi thesis.
    (pick_crossover_pair: strongest candidate + the one winning on most tasks
    the strongest fails; degenerate single-candidate pools fall back to
    mutation), the evolve loop alternates mutation (thin pool) and crossover
-   (split frontier); unparseable merge proposals keep parent A. Tests:
+   (split frontier); unparseable merge proposals keep parent A. Live-run
+   driver BUILT (2026-11-17): `python -m memnc.bench.gepa_run --arm B
+   --role coder --tier hard --jsonl <bench.jsonl> --out <frontier.jsonl>
+   [--generations N]` — harvests the arm's failures from a bench JSONL,
+   evaluates candidates only on the failing tasks (rep 0), reflects with
+   the critic-tier model, and persists the Pareto frontier (role, gen,
+   prompt, scores, wins) to JSONL. A run without failures is a no-op.
+   Tests:
    tests/test_gepa.py (failure harvest, tolerant proposal parsing, Pareto
    front, prompt swap/restore incl. error path, crossover pair selection +
    evolve-operator alternation).
-   A live evolution run awaits the 120-rep full bench run (item 1).
+   LIVE RUN (2026-11-18 night, in flight): first two starts died — one
+   no-op (--arm B: no failures in the D-only merged.jsonl), one httpx
+   ReadTimeout on the reflection call (backend timeout defaults to
+   INFERENCE_TIMEOUT_S=180 s; Gemma-31B reflection needs minutes). Restarted
+   with INFERENCE_TIMEOUT_S=7200 + INFERENCE_BASE_URL=http://127.0.0.1:11434
+   (ollama lane), -u unbuffered, --arm D --role coder --tier hard
+   --generations 3 -> workspace/gepa-d-coder-frontier.jsonl. Overnight run;
+   verdict appended when done.
 5. ACE slice: automated Erfahrungsspeicher — append-only itemized bullets,
    deterministic merge, brevity-bias + context-collapse guards.
    STATUS: BUILT (2026-11-15) — src/memnc/experience_store.py (design in
@@ -1759,8 +1818,12 @@ outcomes on the SELF_REFLECT_EDGE ("B" - its REVISE loop is arm-B behaviour,
 mirroring the orchestrator's LIVE_EDGE deposit), and an unsure marker in the
 error or critique summary folds as a weak "unsure" deposit on the
 self-reflect edge instead of a success/failure on the acting edge, so
-repeated unsure behaviour converges routing toward B. Still open: an arm P
-full-run measurement.
+repeated unsure behaviour converges routing toward B. The arm P full-run
+measurement (reps 5, hard tier, same lane as the 2026-11-17 arm D run) is
+queued behind the in-flight GEPA lane2 run via
+`scripts/run_arm_p_after_gepa.sh` (waits for the GEPA process, then runs
+`--arms P --reps 5 --tiers hard` -> `workspace/bench-p-hard.jsonl/.md`);
+process the JSONL into the 15.3 bench report when done.
 
 ## 15.4 OpenCode harness (BUILT 2026-11-15, commit 7765404)
 
@@ -1940,7 +2003,8 @@ workspace-continuity slices still open):
   binaries and artifacts a prior attempt left instead of re-deriving
   state. Tests: `tests/test_harnesses.py` (listing cases + prompt
   rendering).
-- **Checkpoint/restart (BUILT 2026-11-17, attempt-journal slice):** every
+- **Checkpoint/restart (BUILT 2026-11-17, attempt-journal slice; entries
+  carry a failclass label since 2026-11-18):** every
   failed attempt that schedules a retry appends one bounded entry to
   `TaskSnapshot.attempt_journal` (`src/memnc/journal.py`,
   `note_failure()`): the failed attempt number, the stage (role), the
@@ -1973,6 +2037,11 @@ workspace-continuity slices still open):
 Open question: how error classification maps onto the existing trace
 entries (the journal stores the raw reason text; failclass labels could be
 added per entry later).
+RESOLVED (2026-11-18): each journal entry now carries `kind` =
+`classify_failure(event.reason)` (timeout/server/invalid_output/unknown),
+and the rendered PROGRESS block labels classified errors
+("error (timeout): ..."; unknown stays unlabeled). Tests:
+`tests/test_journal.py`.
 
 Finding — fabrication passed the DONE gate (2026-11-15, mesh autonomy test):
 task 1a1e00c15dc0077966c7064 (KugelAudio TTS) finished DONE with critic
@@ -1992,6 +2061,38 @@ note must close them):
    ffprobe/stat against the real filesystem, not an LLM's opinion.
 3. Claimed vs. existing artifacts are never cross-checked: every file path
    in a code result is stat'ed by the orchestrator before DONE is written.
+
+### 15.4.6 Scheduling gate: VRAM as schedulable resource (design note, 2026-11-18, before coding)
+
+Standing rule (fit gate): a model either fits fully in VRAM or is a
+MoE with a hot cache for the experts. Model configs where less than half
+the model sits in VRAM (observed in production: an ollama rest-split of a
+MoE-class quant where only a small fraction of the weights stayed in VRAM)
+are senseless and must be rejected DETERMINISTICALLY — not
+by agent judgment, but by the loader. Kubernetes analogy: a pod that fits
+no node never starts; it stays Pending with FailedScheduling. No
+half-started substitutes.
+
+Design:
+1. VRAM becomes a schedulable resource like cpu/memory in K8s. Every
+   registry entry declares `model_bytes + kv_cache_bytes` (computable
+   from quant, n_ctx, ngl); every node reports free VRAM (scan-refresh
+   inventory already carries this).
+2. Admission BEFORE load: the loader / llauncher runs a fit check —
+   `fit(node, model)` -> zero fitting nodes means REJECT before load,
+   status `unschedulable`, event published to health/backlog. No
+   ngl-rest-split fallback; a model that fits nowhere is never started.
+3. MoE models are the special case, mapped to K8s taints/labels: only
+   nodes with hot-cache capability carry the label; MoE-with-hot-cache
+   models schedule only there. `placement: full | moe-hot-cache` field
+   on the registry entry makes this a static loader check.
+4. Ollama specifically: set num_gpu so no partial load can happen; after
+   any load, probe `size_vram` and if it is below a threshold (e.g.
+   <90% of model bytes) discard the load automatically and publish
+   health `degraded:rest-split`.
+
+Non-goal: a new scheduler. This is one fit() function + one field +
+one reject path in the existing load/validate flow.
 
 ### 15.4.5 DONE-gate hardening (design note; gaps 1-2 shipped)
 
@@ -2223,6 +2324,16 @@ k-evaluators -11.1pp), Codacus (planner = biggest model), ReAct (escalate
 on unsure). A variant must rescue at least one of A's two hard failures
 (rate_limiter, dijkstra) to count as progress.
 
+MEASURED (2026-11-17, hard tier 8 tasks x 5 reps = 40 rows): D1 30/40 (75%,
+Wilson [59.8, 85.8]) @ 3030 tok/task mean, 3.45 llm calls — worse than B
+(38/40 @ 1910 tok) on quality AND cost; no rescue of the A failures
+(rate_limiter 2/5, dijkstra 2/5). D1 misses both qualification gates; the
+evidence-gate critic added ~1.6x B cost for negative quality. D2 is
+disqualified by cost before running (strictly more expensive than D1,
+which already exceeds the 3000-tok ceiling). Consequence: mesh-as-refiner
+is DEAD for this task class; keep mesh as supervisor-of-one (14.15.3) and
+route the quality difference into GEPA prompt evolution (15.3 item 4).
+
 ## 16.4 design-message-tuple.md (TalkHop communication — BUILT)
 
 TalkHier tuples: every hop carries (Message, Background, IntermediateOutput)
@@ -2295,3 +2406,126 @@ Two layers: this roadmap file (distilled, versioned) + KV pheromones
   report-full-2026-11-15.md — seeded bench results (120-row full run:
   A 82.5% @ 609 tok/task, CIs and per-tier tables inside). Durable numbers
   live in section 15 and the experience notes above.
+
+# 17. M11d — model-mediated NL agent (design note, before code)
+
+**Status (shipped):** implemented as `src/memnc/api_agent.py` + `meshctl ask`
+(CLI wired in cli.py). Deliberate deviations from the v1 sketch below, kept
+small on purpose: the agent is a single-turn plan -> one API call -> render
+(no multi-turn tool loop yet; the loop and proposal blocks are the v2
+refinement). The write-verb rule is enforced by the fail-closed
+`agent_allowed_verbs` allowlist instead of proposal rendering — the default
+allowlist includes `task.submit`, so a write is still grant-checked by the
+orchestrator. Budget guards, untrusted-data system prompt, and echo-skipping
+parse follow the design. Tests: tests/test_api_agent.py.
+
+The operator asks natural-language questions of the mesh ("what failed
+overnight?", "why did the dijkstra task fail?", "which node should take the
+next hard task?") and gets answers grounded in live mesh state, with
+optional control actions executed ONLY through the existing grant-checked
+control path. Design-first per the standing rule: nothing here is built
+until the design is approved.
+
+## 17.1 Shape
+
+- One new frontend, same class as Telegram/console: `src/memnc/nlagent.py`,
+  CLI entry `meshctl ask "<question>"` (no new long-lived daemon in v1 — a
+  daemon is only needed once the agent becomes conversational across turns,
+  deferred). The agent is an API client, never a second writer.
+- Model-mediated tool loop: the LLM sees the question plus a catalog of the
+  API read verbs (task.list, task.detail, node.list, node.detail, cap.list,
+  grant.list, trust.list, ledger.read, obs.synergy, observations via the
+  same path `meshctl obslast` uses) and calls them as tools; results come
+  back as tool messages; the loop ends with an answer. Reuses the
+  tool-call-echo parsing rules from the role pipeline (collect ALL JSON
+  candidates, skip echoes, validate, richest wins).
+- Budget guards (hard caps, not advisory): max 8 tool calls and max 3 model
+  turns per question; per-call timeout = the shared inference timeout;
+  oversized verb results are truncated head+tail to a bounded char budget
+  before entering the prompt (task.detail traces are the big ones).
+
+## 17.2 Authority and security (standing invariants, restated for this slice)
+
+- Read verbs are directly callable. WRITE verbs are never executed by the
+  agent in v1: when the model concludes an action is warranted, the answer
+  renders a PROPOSAL block (`proposed: task.retry <id>` etc.) for the human
+  to run. v2 may add one-tap confirm, riding the Telegram button path —
+  buttons only transport existing ControlCommands, no new authority path.
+- `agent_id` for any future write ride-along must avoid `:` (KV key rule),
+  e.g. `nlagent-cli`; the orchestrator's grant gate still applies unchanged
+  — autonomy limits control, never authentication.
+- Untrusted data rule: task summaries, trace text, critic objections and
+  error strings fed to the model are UNTRUSTED DATA, never instructions.
+  The system prompt states this explicitly; a prompt-injection attempt
+  inside a task error message must not be able to trigger tool calls beyond
+  the read set. Belt: only the fixed read-verb table is even callable, so
+  injected instructions cannot reach a write path at all in v1.
+- No secrets in payloads: settings/secrets are resolved at point of use;
+  the curated-env subprocess rules apply if the agent ever shells out (v1:
+  it does not).
+- Listening surface: none (CLI runs, connects to the bus, exits). No port,
+  nothing to expose.
+
+## 17.3 Model and failure behaviour
+
+- Config: `nlagent_model` (default = the critic-tier model — synthesis and
+  review is its measured strength; NOT the coder), `nlagent_max_turns` (3),
+  `nlagent_max_tool_calls` (8). Inference via the local serving layer URL
+  from Settings, same as other frontends.
+- Fail-closed: unparseable model output or exhausted budget returns the
+  tool results as a raw digest with a "could not synthesize" marker instead
+  of a confident hallucinated answer. No model reachable -> the command
+  fails with that reason; it never falls back to guessing.
+
+## 17.4 Non-goals (v1)
+
+- No conversational memory across invocations (each `ask` is fresh; the
+  experience store + pheromones are the mesh's memory, not the agent's).
+- No task submission through the agent (the backlog/meshctl submit flow
+  already owns intent capture), no WAIT_INPUT answering (that stays the
+  human's job via the chain grant), no channel/human-as-peer integration
+  (feeds in later from the M11a leftover).
+- No embeddings/graph retrieval — reads go through the existing verbs; the
+  experience-graph Step 4 surfaces (similar/obslast) are reachable later by
+  exposing them as verbs, not by giving the agent direct KV access.
+
+## 17.5 Tests (style: sync tests + asyncio.run, no decorators)
+
+- Verb catalog rendering; tool-call parse (echo skipping, invalid JSON
+  tolerated); budget exhaustion returns digest not answer; untrusted-data
+  system-prompt text present; proposal block rendering; fake bus/api stubs
+  per the FakeBus patterns (no publish_envelope assumption).
+## 18. Throughput verdict + monitoring MCP tools (shipped, live-verified)
+
+### 18.1 Monitor MCP tools
+`src/memnc/mcp/tools_monitor.py` adds `gpu_status`, `inference_status`,
+`run_status`, `daemon_status` to the memnc MCP server. They read kernel
+interfaces and service sockets directly (no subprocess shell-outs for
+read-only status). Use these tools instead of one-off tail/pgrep/curl
+loops in agent chats.
+
+### 18.2 Throughput verdict
+Decode is bandwidth-limited: a dense model reads all weights per token, a
+MoE only the active experts.
+
+    expected_tok_s ~ sum(gpu_bandwidth_i) / weighted_bytes_per_token
+    efficiency     = real / expected
+
+Verdict thresholds on `efficiency`: below 0.5 -> `setup-unfit` (the setup
+is pointless for coding), below 0.75 -> `suboptimal`, otherwise `ok`.
+An absolute warning (`tok_s_warn_below`, default 30 tok/s) fires when the
+real decode speed falls under that line.
+
+Config: `~/.config/memnc/throughput.json` — deliberately OUTSIDE the repo
+(it names concrete hardware and must never leak into a shared tree;
+overridable via `MEMNC_THROUGHPUT_CONFIG`). Without a config file the
+throughput fields return `null` and the tool stays fully functional, just
+without a verdict.
+
+### 18.3 llauncher backend
+`src/memnc/backends/llauncher.py` adds a backend that talks to the local
+llauncher-managed llama-server lane, registered alongside the existing
+backends in `backends/__init__.py`. Follow-up: unit tests for the monitor
+tools, the llauncher backend and the GEPA checkpoint-resume path (all
+three shipped live-verified first).
+
