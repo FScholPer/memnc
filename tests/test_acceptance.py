@@ -224,3 +224,10 @@ def test_absolute_escape_checked(tmp_path: Path):
     report = asyncio.run(run_acceptance(criteria, tmp_path))
     assert not report.results[0].ok
     assert "escapes workspace" in report.results[0].evidence
+
+
+def test_workspace_root_criterion(tmp_path: Path):
+    """Planner emits `file_exists /workspace` — the root itself must pass."""
+    criteria, _ = parse_criteria("file_exists /workspace\n")
+    report = asyncio.run(run_acceptance(criteria, tmp_path))
+    assert report.results[0].ok, report.results[0].evidence
