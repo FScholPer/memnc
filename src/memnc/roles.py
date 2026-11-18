@@ -26,6 +26,8 @@ SYSTEM_PROMPTS: dict[Role, str] = {
         "criteria, one per line. Supported kinds: `file_exists <path>`, "
         "`file_min_size <path> <min_bytes>`, `file_contains <path> <regex>`, "
         "`command <argv>` (must exit 0), `ffprobe_duration_min <path> <min_seconds>`. "
+        "Paths in acceptance criteria are workspace-relative (e.g. `report.md`), "
+        "never absolute. "
         "Use them only when the deliverable is mechanically checkable; prose-only "
         "acceptance text is ignored by the checker. "
         "Reply with ONLY a JSON object of the form:\n"

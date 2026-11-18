@@ -194,3 +194,33 @@ class TestWorkerGate:
 def test_criterion_dataclass_shape():
     c = AcceptanceCriterion(kind="file_exists", args=["a.md"])
     assert c.kind == "file_exists" and c.args == ["a.md"]
+
+
+def test_absolute_and_escape_paths(tmp_path: Path):
+    """Planner emits absolute `/workspace/...` (real 1a1ed936 failure) and a
+    traversal escape; both must resolve/behave deterministically."""
+    (tmp_path / "attempt-journal.json").write_text('{"last_stage": "CODING"}\n')
+    criteria, _ = parse_criteria(
+        "file_exists /workspace/attempt-journal.json\n"
+        "file_contains /workspace/attempt-journal.json stage\n"
+        "file_exists ../../../etc/passwd\n"
+        "file_exists /\n"
+    )
+    report = asyncio.run(run_acceptance(criteria, tmp_path))
+    r = report.results
+    # absolute path normalized to workspace-relative -> file found
+    assert r[0].ok, r[0].evidence
+    assert r[1].ok, r[1].evidence
+    # `..` escape rejected, not silently resolved outside the workspace
+    assert not r[2].ok and "escapes workspace" in r[2].evidence
+    # bare root path rejected
+    assert not r[3].ok and "escapes workspace" in r[3].evidence
+    assert not report.all_passed
+
+
+def test_absolute_escape_checked(tmp_path: Path):
+    (tmp_path / "secret.md").write_text("secret\n")
+    criteria, _ = parse_criteria("file_exists ../../secret.md\n")
+    report = asyncio.run(run_acceptance(criteria, tmp_path))
+    assert not report.results[0].ok
+    assert "escapes workspace" in report.results[0].evidence
