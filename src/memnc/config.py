@@ -237,6 +237,11 @@ class Settings(BaseSettings):
     # Empty list = the pull path is closed (pull decisions are acknowledged
     # but refused); loaded/disk models keep working without any entry.
     model_pull_whitelist: list[str] = Field(default_factory=list)
+    # 15.4.6 VRAM fit gate: reject loads that fit no card; MoE models that
+    # need a hot expert cache only schedule on nodes declaring capability.
+    vram_fit_gate: bool = True
+    moe_hot_cache_capable: bool = False
+    moe_hot_cache_models: list[str] = Field(default_factory=list)
     # T7: consecutive critic rejections before a retirement proposal is raised.
     retire_threshold: int = 3
 

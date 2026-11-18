@@ -2165,8 +2165,22 @@ Design:
    <90% of model bytes) discard the load automatically and publish
    health `degraded:rest-split`.
 
-Non-goal: a new scheduler. This is one fit() function + one field +
-one reject path in the existing load/validate flow.
+Non-goal: a new scheduler. This is one fit() function + one field + one
+reject path in the existing load/validate flow.
+
+BUILT (2026-11-18 night): `src/memnc/scheduling.py` — `fit()` (admission
+check: MoE-hot-cache placement requires node capability; unknown size
+rejects in strict mode and passes lenient so a broken size source cannot
+brick every load), `rest_split()` (resident footprint below 90% of weight
+bytes = loader spilled to system RAM), `placement_for()` (v1 MoE registry as
+a fnmatch settings list). Worker wiring: `_fit_check` runs before every
+load/pull follow-up load against the WORST card's free VRAM (sum-across-cards
+would mask a full GPU), `_post_load_check` unloads a rest-split load and
+logs `degraded:rest-split`. Settings: `vram_fit_gate` (default on),
+`moe_hot_cache_capable`, `moe_hot_cache_models`. Scope note: the gate covers
+the explicit load/pull path; chat-time auto-load on first inference stays
+out of scope for v1. Tests: `tests/test_scheduling.py` (7) and
+`tests/test_vram_fit_gate.py` (5).
 
 ### 15.4.5 DONE-gate hardening (design note; gaps 1-2 shipped)
 
