@@ -745,8 +745,11 @@ the flag).** The dreaming job is a scheduled, deterministic, offline walk over
 the durable knowledge stores. STATUS: DESIGN approved as written; build step 1 (pure-logic core
 `src/memnc/dreaming.py` + tests: clustering, pattern/supersession/ranking
 bullets, `dream_bullets()`) committed, dormant — nothing runs without the
-operator enabling `dreaming_enabled`. Next: step 2 job wrapper
-(`python -m memnc.dreaming --dry-run/--apply`), step 3 systemd unit+timer,
+operator enabling `dreaming_enabled`. STATUS build step 2 (job wrapper
+`src/memnc/dreaming_job.py`, entry `python -m memnc.dreaming
+--dry-run|--apply`): skip-if-busy gate, single-writer `dream.lock` KV
+claim with 1h stale reclaim, dry-run default, `--apply` merges into the
+experience store; 9 tests. Next: step 3 systemd unit+timer,
 step 4 `meshctl dream` verb.
 
 - **Stores walked (all already shipped):** `mesh_observations` KV (TaskObservation
