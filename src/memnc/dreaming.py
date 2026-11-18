@@ -172,3 +172,10 @@ def dream_bullets(
     if ranking:
         out[RANKING_TOPIC].append(ranking)
     return {topic: texts for topic, texts in out.items() if texts}
+
+
+if __name__ == "__main__":  # 14.13 step 2: `python -m memnc.dreaming`
+    # Kept at the bottom so importing the module never pulls in NATS.
+    from .dreaming_job import main
+
+    raise SystemExit(main())
