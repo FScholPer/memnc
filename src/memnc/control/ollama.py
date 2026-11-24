@@ -33,11 +33,32 @@ class OllamaControl:
         base_url: str = "http://127.0.0.1:11434",
         unit: str = "ollama.service",
         delegate: BackendControl | None = None,
+        delegates: list[BackendControl] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.unit = unit
-        # Process control lives in the adapter that owns the service (llauncher).
-        self.delegate = delegate
+        # Process control lives in the adapter that owns the service (llauncher,
+        # a compose container, …). The first one that can see the endpoint wins.
+        self.delegates: list[BackendControl] = list(delegates or [])
+        if delegate is not None:
+            self.delegates.insert(0, delegate)
+
+    def _delegate_target(self) -> tuple[BackendControl, Service] | None:
+        for delegate in self.delegates:
+            try:
+                peer = next(
+                    (
+                        svc
+                        for svc in delegate.services()
+                        if svc.endpoint and _same_host_port(svc.endpoint, self.base_url)
+                    ),
+                    None,
+                )
+            except Exception:  # noqa: BLE001 — a broken adapter must not break this one
+                continue
+            if peer is not None:
+                return delegate, peer
+        return None
 
     # ── reading ────────────────────────────────────────────────────────────
 
@@ -70,17 +91,9 @@ class OllamaControl:
         # When a process adapter owns the same endpoint, let it report the unit
         # state; this row only contributes the model inventory.
         state, service = RUNNING, self.unit
-        if self.delegate is not None:
-            peer = next(
-                (
-                    svc
-                    for svc in self.delegate.services()
-                    if svc.endpoint and _same_host_port(svc.endpoint, self.base_url)
-                ),
-                None,
-            )
-            if peer is not None:
-                state, service = peer.state, peer.service
+        target = self._delegate_target()
+        if target is not None:
+            state, service = target[1].state, target[1].service
 
         return [
             Service(
@@ -98,13 +111,10 @@ class OllamaControl:
     # ── control ────────────────────────────────────────────────────────────
 
     def _delegate_or_systemctl(self, verb: str) -> ActionResult:
-        if self.delegate is not None:
-            target = next(
-                (s for s in self.delegate.services() if s.name == "ollama"),
-                None,
-            )
-            if target is not None:
-                return getattr(self.delegate, verb)("ollama")
+        target = self._delegate_target()
+        if target is not None:
+            adapter, svc = target
+            return getattr(adapter, verb)(svc.name)
 
         try:
             proc = subprocess.run(
@@ -139,11 +149,13 @@ class OllamaControl:
         return self._delegate_or_systemctl("restart")
 
     def logs(self, name: str, lines: int = 100) -> str:
-        if self.delegate is not None:
+        target = self._delegate_target()
+        if target is not None:
+            adapter, svc = target
             try:
-                return self.delegate.logs("ollama", lines)
+                return adapter.logs(svc.name, lines)
             except Exception as exc:  # noqa: BLE001
-                return f"no logs via {self.delegate.name}: {exc}"
+                return f"no logs via {adapter.name}: {exc}"
         try:
             proc = subprocess.run(
                 ["journalctl", "--user", "-u", self.unit, "-n", str(lines), "--no-pager"],

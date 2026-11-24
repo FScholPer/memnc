@@ -299,6 +299,10 @@ src/memnc/control/
   base.py        Service, ActionResult, State/Health-Vokabular, BackendControl-Protocol
   llauncher.py   LlauncherControl — shellt auf die llauncher-CLI (eine Implementierung
                  für "wie stoppe ich eine Unit" im Stack), mappt JSON-Snapshots
+  docker.py      DockerControl — Container als Backend-Instanzen; Qualifikation über
+                 memnc.backend-Label, docker_backends-Setting oder Inference-Image
+  llamacpp.py    LlamaCppControl — native llama-server-Prozesse direkt vom Host:
+                 /proc/<pid>/cmdline + cgroup→systemd-Unit, ohne llauncher
   ollama.py      OllamaControl — Modelle über HTTP (/api/tags, /api/ps);
                  Prozess-Seite delegiert an einen anderen Adapter, sonst systemctl
   __init__.py    controls() / find_control() / collect()
@@ -313,9 +317,21 @@ Design-Regeln:
   (`http://127.0.0.1:11434` == `127.0.0.1:11434`) und merged die Zeile:
   Prozess-Owner liefert Lifecycle, andere Adapter reichern Modell-Inventar an.
   Deshalb gibt es genau eine ollama-Zeile, obwohl zwei Adapter sie kennen.
-- **Delegation statt Duplikat.** `OllamaControl(delegate=llauncher)` steuert den
-  Prozess nicht selbst. `controls()` setzt das Delegate nur, wenn
-  `llauncher.available()` — die Registry bleibt ehrlich, wenn das Backend fehlt.
+- **Delegation statt Duplikat.** `OllamaControl(delegates=[...])` steuert den
+  Prozess nicht selbst, sondern fragt die Adapterliste nach dem Endpoint
+  (`/api/tags`-Host:Port) und nimmt den ersten, der ihn bedient — egal ob das
+  llauncher, docker oder ein native `llama-server` ist. Fällt der Delegate weg,
+  greift `systemctl` auf die konfigurierte Unit. `controls()` baut die Liste
+  entsprechend der Autorität: llauncher → docker → llamacpp.
+- **Host-Truth statt Registry-Truth.** Der llamacpp-Adapter liest, was wirklich
+  läuft (`/proc/<pid>/cmdline`, `--port`, `-m`), und löst die besitzende
+  systemd-User-Unit über die Prozess-cgroup auf. Handgestartete Server sind
+  damit sichtbar und **stoppbar**; neu **starten** geht nur über eine Unit —
+  memnc erfindet keine Serving-Flags.
+- **Container nur, wenn sie Backends sind.** Label `memnc.backend=…` ist
+  opt-in; danach `docker_backends`-Setting (kommagetrennte Namen); zuletzt
+  bekannte Inference-Images. Mesh-Infrastruktur (nats, workers) und
+  Fremddienste (searxng, open-webui) bleiben draußen.
 - **Kein NATS.** Das ist die Notfall-Ebene: wenn das Mesh liegt, muss
   `meshctl backend list` trotzdem funktionieren.
 
@@ -328,15 +344,19 @@ meshctl backend start|stop|restart <name>
 meshctl backend logs <name> [-n 60]
 ```
 
-Verifikation: 7 Unit-Tests in `tests/test_backend_control.py` (Mapping, Dedupe,
-Merge, Delegate-Fehlen, Ollama ohne Daemon), volle Suite 871 passed / 4 skipped.
+Verifikation: 17 Unit-Tests in `tests/test_backend_control.py` (Mapping, Dedupe,
+Merge, Delegate-Fehlen, Ollama ohne Daemon, Docker-Qualifikation/Endpoint/Labels,
+llama-server-cmdline + cgroup→Unit), volle Suite 883 passed / 4 skipped.
 Live: `list` zeigt `swift` :8097, `ollama` :11434 (compose `ollama_power`),
 `hf-cheapest` (cloud, unmanaged). `start swift` ist idempotent
 (`ok — already_running swift`).
 
-Offen: `backend logs` kennt nur, was der Adapter hergibt — compose-Backends
-laufen über den llauncher-Adapter (`docker logs`), reine Adapter ohne
-Log-Quelle antworten `no logs: …`. Ein eigener Docker-Adapter fehlt.
+Offen: `backend logs` für compose-Backends geht über den Docker-Adapter
+(`docker logs`); ein unmanaged `llama-server` liefert nur so viel, wie journald
+bzw. die Unit hergibt — Prozess-stdout außerhalb von systemd ist nicht abgreifbar.
+`memnc.backend`-Labels an den echten Compose-Services fehlen noch (deshalb
+erscheint `ollama_power` derzeit nicht über den Docker-Adapter, sondern nur
+über llauncher).
 
 ## Offene Fragen (für Frank)
 

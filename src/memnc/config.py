@@ -60,6 +60,20 @@ class Settings(BaseSettings):
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_unit: str = "ollama.service"
 
+    # Compose/containers: a container counts as a backend only if it carries
+    # docker_label, is named in docker_backends (comma list), or runs a known
+    # inference-server image. That keeps mesh infra (nats, workers) out of the
+    # backend list without hardcoding names.
+    docker_bin: str = "docker"
+    docker_label: str = "memnc.backend"
+    docker_backends: str = ""
+
+    # Native llama-server processes. llamacpp_units lists systemd user units
+    # that should appear even while stopped (start/restart need a unit; a
+    # hand-started process can only be stopped).
+    llamacpp_bin: str = "llama-server"
+    llamacpp_units: str = ""
+
     @property
     def nats_servers(self) -> list[str]:
         """Split NATS_URL into a server pool (comma-separated seed list)."""
