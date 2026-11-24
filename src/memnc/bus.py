@@ -858,6 +858,7 @@ class Bus:
             if not satisfies(snapshot.needs, node, role_name):
                 return None
         snapshot.claimed_by = worker_id
+        snapshot.claimed_at_epoch = time.time()
         try:
             await self.kv.update(
                 f"task.{task_id}",
