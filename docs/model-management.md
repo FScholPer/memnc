@@ -289,7 +289,56 @@ Entscheidung „welches Modell auf welcher Node" trifft der Planner.
   `drain`-Intents: VRAM-Blockade-Kette endgültig lösen.
 - **MM5** — Kostenmodell aus gemessenen Ladezeiten (Feedback-Loop).
 
-### Offene Fragen (für Frank)
+## Umgesetzt (2026-11-24): `memnc.control` + `meshctl backend`
+
+Die Abstraktion liegt in memnc, nicht im Backend. llauncher und Ollama sind
+Adapter; ein weiteres Backend ist ein weiteres Modul, ohne Kernänderung.
+
+```
+src/memnc/control/
+  base.py        Service, ActionResult, State/Health-Vokabular, BackendControl-Protocol
+  llauncher.py   LlauncherControl — shellt auf die llauncher-CLI (eine Implementierung
+                 für "wie stoppe ich eine Unit" im Stack), mappt JSON-Snapshots
+  ollama.py      OllamaControl — Modelle über HTTP (/api/tags, /api/ps);
+                 Prozess-Seite delegiert an einen anderen Adapter, sonst systemctl
+  __init__.py    controls() / find_control() / collect()
+```
+
+Design-Regeln:
+
+- **Ein Vokabular, kein Backend-Jargon.** Adapter übersetzen nach
+  `running|stopped|failed|cloud|unknown` und `ok|down|open|bad|cloud`.
+  Aufrufer (CLI, später Planner) schalten nur auf diese Werte.
+- **Ein Besitzer pro Service.** `collect()` dedupliziert über Host:Port
+  (`http://127.0.0.1:11434` == `127.0.0.1:11434`) und merged die Zeile:
+  Prozess-Owner liefert Lifecycle, andere Adapter reichern Modell-Inventar an.
+  Deshalb gibt es genau eine ollama-Zeile, obwohl zwei Adapter sie kennen.
+- **Delegation statt Duplikat.** `OllamaControl(delegate=llauncher)` steuert den
+  Prozess nicht selbst. `controls()` setzt das Delegate nur, wenn
+  `llauncher.available()` — die Registry bleibt ehrlich, wenn das Backend fehlt.
+- **Kein NATS.** Das ist die Notfall-Ebene: wenn das Mesh liegt, muss
+  `meshctl backend list` trotzdem funktionieren.
+
+CLI:
+
+```
+meshctl backend list [--backend llauncher] [--json]
+meshctl backend status <name>
+meshctl backend start|stop|restart <name>
+meshctl backend logs <name> [-n 60]
+```
+
+Verifikation: 7 Unit-Tests in `tests/test_backend_control.py` (Mapping, Dedupe,
+Merge, Delegate-Fehlen, Ollama ohne Daemon), volle Suite 871 passed / 4 skipped.
+Live: `list` zeigt `swift` :8097, `ollama` :11434 (compose `ollama_power`),
+`hf-cheapest` (cloud, unmanaged). `start swift` ist idempotent
+(`ok — already_running swift`).
+
+Offen: `meshctl backend logs` für **compose**-Backends liefert nur über den
+llauncher-Adapter Logs; ein reiner `docker logs`-Pfad fehlt noch. Ebenso fehlt
+`backend logs` für Adapter, die selbst keine Logs kennen (dann: `no logs: …`).
+
+## Offene Fragen (für Frank)
 
 - Sollen alle Nodes llama-swap bekommen, oder nur die mit GPU (node-a: RX 6800 XT)?
 - Ollama behalten als Backend hinter llama-swap, oder direkt llama-server?

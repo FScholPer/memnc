@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     agent_llm_base_url: str = "http://127.0.0.1:4000/v1"
     agent_llm_model: str = "local"
 
+    # Backend lifecycle (memnc.control): adapters own the process side, memnc
+    # owns the contract. llauncher_bin is looked up on PATH; ollama_url is the
+    # daemon's native API (not the /v1 shim).
+    llauncher_bin: str = "llauncher"
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_unit: str = "ollama.service"
+
     @property
     def nats_servers(self) -> list[str]:
         """Split NATS_URL into a server pool (comma-separated seed list)."""
@@ -137,6 +144,11 @@ class Settings(BaseSettings):
     judge_model: str = ""
     critic_timeout_s: int = 180
     orchestrator_grace_s: int = 30
+    # 15.4.5 gap: a CAS claim whose worker died (restart/crash) must not
+    # orphan the task. The reaper frees claims older than this many seconds;
+    # must comfortably exceed the longest legitimate step
+    # (critic_timeout_s + orchestrator_grace_s).
+    claim_ttl_s: float = 900
     apply_artifacts: bool = True
     max_artifact_bytes: int = 200_000
 
