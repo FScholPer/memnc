@@ -334,9 +334,9 @@ Live: `list` zeigt `swift` :8097, `ollama` :11434 (compose `ollama_power`),
 `hf-cheapest` (cloud, unmanaged). `start swift` ist idempotent
 (`ok — already_running swift`).
 
-Offen: `meshctl backend logs` für **compose**-Backends liefert nur über den
-llauncher-Adapter Logs; ein reiner `docker logs`-Pfad fehlt noch. Ebenso fehlt
-`backend logs` für Adapter, die selbst keine Logs kennen (dann: `no logs: …`).
+Offen: `backend logs` kennt nur, was der Adapter hergibt — compose-Backends
+laufen über den llauncher-Adapter (`docker logs`), reine Adapter ohne
+Log-Quelle antworten `no logs: …`. Ein eigener Docker-Adapter fehlt.
 
 ## Offene Fragen (für Frank)
 
