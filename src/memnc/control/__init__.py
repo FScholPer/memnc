@@ -13,6 +13,8 @@ from .base import (
     Service,
     get_service,
 )
+from .docker import DockerControl
+from .llamacpp import LlamaCppControl
 from .llauncher import LlauncherControl
 from .ollama import OllamaControl
 
@@ -20,6 +22,10 @@ __all__ = [
     "ActionResult",
     "BackendControl",
     "BackendError",
+    "DockerControl",
+    "LlamaCppControl",
+    "LlauncherControl",
+    "OllamaControl",
     "Service",
     "collect",
     "controls",
@@ -41,11 +47,28 @@ def controls(settings=None) -> list[BackendControl]:
     if llauncher.available():
         adapter_list.append(llauncher)
 
+    docker = DockerControl(
+        binary=getattr(settings, "docker_bin", "docker"),
+        label=getattr(settings, "docker_label", "memnc.backend"),
+        containers=getattr(settings, "docker_backends", ""),
+    )
+    if docker.available():
+        adapter_list.append(docker)
+
+    # Native llama-server processes: after llauncher/docker so that the adapter
+    # which owns the unit/container keeps the row and this one only fills gaps.
+    adapter_list.append(
+        LlamaCppControl(
+            binary_name=getattr(settings, "llamacpp_bin", "llama-server"),
+            units=getattr(settings, "llamacpp_units", ""),
+        )
+    )
+
     adapter_list.append(
         OllamaControl(
             base_url=getattr(settings, "ollama_url", "http://127.0.0.1:11434"),
             unit=getattr(settings, "ollama_unit", "ollama.service"),
-            delegate=llauncher if llauncher.available() else None,
+            delegates=list(adapter_list),
         )
     )
     return adapter_list

@@ -7,6 +7,8 @@ checks are the manual smoke test (`meshctl backend list`).
 
 from memnc.control import collect, find_control
 from memnc.control.base import CLOUD, HEALTH_OK, RUNNING, Service
+from memnc.control.docker import DockerControl, _endpoint, _parse_labels
+from memnc.control.llamacpp import parse_cmdline, unit_from_cgroup
 from memnc.control.llauncher import LlauncherControl
 from memnc.control.ollama import OllamaControl
 
@@ -115,3 +117,86 @@ def test_ollama_down_is_reported_as_state_not_exception(monkeypatch):
     assert len(rows) == 1
     assert rows[0].health == "down"
     assert rows[0].endpoint.endswith(":11434")
+
+
+# -- docker adapter ----------------------------------------------------------
+def test_docker_accepts_labelled_container():
+    assert DockerControl().accepts({"Names": "x", "Image": "busybox", "Labels": "memnc.backend=1"})
+
+
+def test_docker_accepts_configured_name_even_without_label():
+    assert DockerControl(containers="ollama_power").accepts(
+        {"Names": "ollama_power", "Image": "custom:latest"}
+    )
+
+
+def test_docker_accepts_known_inference_image():
+    assert DockerControl().accepts({"Names": "v", "Image": "vllm/vllm-openai:latest"})
+
+
+def test_docker_rejects_mesh_infra():
+    """nats/workers are mesh plumbing, not backends — no label, no image match."""
+    assert not DockerControl().accepts({"Names": "memnc-nats-1", "Image": "nats:2.10-alpine"})
+    assert not DockerControl().accepts({"Names": "searxng", "Image": "searxng/searxng"})
+
+
+def test_docker_endpoint_prefers_published_host_port():
+    assert _endpoint("0.0.0.0:11434->11434/tcp, :::11434->11434/tcp") == "127.0.0.1:11434"
+    assert _endpoint("") == ""
+
+
+def test_docker_labels_parse_comma_string():
+    labels = _parse_labels("com.docker.compose.project=ki-station,memnc.model=a:1b")
+    assert labels["com.docker.compose.project"] == "ki-station"
+    assert labels["memnc.model"] == "a:1b"
+
+
+def test_docker_state_map_and_health(monkeypatch):
+    adapter = DockerControl()
+    rows = adapter._to_service(
+        {
+            "Names": "ollama_power",
+            "Image": "ollama/ollama:latest",
+            "State": "running",
+            "Status": "Up 4 hours (healthy)",
+            "Ports": "0.0.0.0:11434->11434/tcp",
+        }
+    )
+    assert (rows.state, rows.health) == (RUNNING, HEALTH_OK)
+    assert rows.endpoint == "127.0.0.1:11434"
+
+
+# -- native llama.cpp adapter ------------------------------------------------
+def test_cmdline_parses_model_port_ctx_and_draft():
+    spec = parse_cmdline(
+        [
+            "/opt/llama.cpp/build-hip/bin/llama-server",
+            "-m",
+            "/models/Swift-1.5.gguf",
+            "--port=8097",
+            "--host",
+            "0.0.0.0",
+            "-c",
+            "32768",
+            "-md",
+            "/models/dspark-Q8_0.gguf",
+        ]
+    )
+    assert spec["model"] == "Swift-1.5.gguf"
+    assert spec["endpoint"] == "127.0.0.1:8097"
+    assert spec["ctx"] == "32768"
+    assert spec["draft"] == "dspark-Q8_0.gguf"
+    assert spec["name"] == "Swift-1.5"
+
+
+def test_cmdline_defaults_without_flags():
+    spec = parse_cmdline(["/bin/llama-server"])
+    assert spec["endpoint"] == "127.0.0.1:8080"
+    assert spec["model"] == ""
+
+
+def test_unit_from_cgroup_picks_user_unit():
+    assert unit_from_cgroup(
+        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/swift.service\n"
+    ) == ("swift.service")
+    assert unit_from_cgroup("0::/user.slice/session-3.scope\n") == ""
