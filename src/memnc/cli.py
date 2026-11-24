@@ -653,7 +653,9 @@ async def cmd_backend(args: argparse.Namespace, settings: Settings) -> int:
             print("no backends found (no adapter could be queried)")
             return 1
         for row in rows:
-            models = ",".join(row.models) or "-"
+            models = ",".join(row.models[:3]) or "-"
+            if len(row.models) > 3:
+                models += f",+{len(row.models) - 3}"
             print(
                 f"{row.name:<14} {row.backend:<10} {row.state:<8} {row.health:<6} "
                 f"{row.endpoint or '-':<28} {row.service or '-':<24} {models}"
