@@ -631,6 +631,76 @@ async def cmd_revocations(_: argparse.Namespace, settings: Settings) -> int:
         await bus.close()
 
 
+async def cmd_backend(args: argparse.Namespace, settings: Settings) -> int:
+    """Backend lifecycle, routed through memnc.control adapters.
+
+    memnc owns the contract; llauncher/ollama only translate. No NATS needed —
+    this command must work when the mesh itself is down.
+    """
+    import json
+
+    from . import control
+
+    adapters = control.controls(settings)
+    action = getattr(args, "action", "list")
+
+    if action == "list":
+        rows = control.collect(adapters, backend=getattr(args, "backend", ""))
+        if getattr(args, "json", False):
+            print(json.dumps([row.as_dict() for row in rows], indent=2))
+            return 0
+        if not rows:
+            print("no backends found (no adapter could be queried)")
+            return 1
+        for row in rows:
+            models = ",".join(row.models) or "-"
+            print(
+                f"{row.name:<14} {row.backend:<10} {row.state:<8} {row.health:<6} "
+                f"{row.endpoint or '-':<28} {row.service or '-':<24} {models}"
+            )
+        return 0
+
+    name = args.name
+    found = control.find_control(name, adapters)
+    if found is None:
+        known = ", ".join(row.name for row in control.collect(adapters)) or "none"
+        print(f"unknown backend instance {name!r} (known: {known})")
+        return 2
+    adapter, svc = found
+
+    if action == "status":
+        # Prefer the merged row: lifecycle from one adapter, model inventory
+        # from another (e.g. llauncher knows the unit, ollama knows its models).
+        merged = next((row for row in control.collect(adapters) if row.name == svc.name), svc)
+        print(f"name     {merged.name}")
+        print(f"adapter  {adapter.name}")
+        print(f"state    {merged.state}")
+        print(f"health   {merged.health}")
+        print(f"endpoint {merged.endpoint or '-'}")
+        print(f"service  {merged.service or '-'}")
+        print(f"models   {', '.join(merged.models) or '-'}")
+        if merged.detail:
+            print(f"detail   {merged.detail}")
+        return 0
+
+    if action == "logs":
+        try:
+            text = adapter.logs(name, getattr(args, "lines", 60))
+        except control.BackendError as exc:
+            print(f"no logs: {exc}")
+            return 1
+        print(text.rstrip())
+        return 0
+
+    result = getattr(adapter, action)(name)
+    print(
+        f"{result.action} {result.backend}/{result.name}: "
+        f"{'ok' if result.ok else 'FAILED'}"
+        + (f" — {result.message}" if result.message else "")
+    )
+    return 0 if result.ok else 1
+
+
 async def cmd_doctor(_: argparse.Namespace, settings: Settings) -> int:
     ok = True
     print(f"NATS       {settings.nats_url}")
@@ -1190,6 +1260,29 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subparsers.add_parser("doctor", help="check connectivity and models")
     doctor.set_defaults(func=cmd_doctor)
+
+    backend_parser = subparsers.add_parser(
+        "backend", help="backend lifecycle via adapters (llauncher, ollama, ...)"
+    )
+    backend_sub = backend_parser.add_subparsers(dest="action", required=True)
+
+    backend_list = backend_sub.add_parser("list", help="every known backend instance")
+    backend_list.add_argument("--backend", default="", help="only this adapter")
+    backend_list.add_argument("--json", action="store_true", help="machine-readable")
+    backend_list.set_defaults(func=cmd_backend, name=None)
+
+    for verb, verb_help in (
+        ("status", "one backend instance in detail"),
+        ("start", "start a backend instance"),
+        ("stop", "stop a backend instance"),
+        ("restart", "restart a backend instance"),
+        ("logs", "show recent logs"),
+    ):
+        sub = backend_sub.add_parser(verb, help=verb_help)
+        sub.add_argument("name")
+        if verb == "logs":
+            sub.add_argument("-n", "--lines", type=int, default=60)
+        sub.set_defaults(func=cmd_backend)
 
     backlog_add = subparsers.add_parser(
         "backlog-add", help="add a task to the backlog (optionally under a plan)"
