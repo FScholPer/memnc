@@ -1042,6 +1042,14 @@ Topology support is DONE (see Built). Open infra slices:
    roster nodes.
 3. **Wake-on-backlog (WoL)**: DONE — see section 14.15.8.
 
+## P5 — Issue intake 2026-11-24 (#35 / #36 / #37) — see §19
+
+Two stages, in this order: **P5 = Phase 1** (lease by liveness, mid-turn
+AWAITING_HUMAN, pre-act guards, critic JSON gate, foreign-harness approvals)
+before **P6/P7 = Phase 2** (ELITE scaffold evolution, System-1 graph router,
+role LoRAs). Coverage map of what already exists, slice-by-slice plans with
+acceptance tests, and issue→slice traceability live in section 19.
+
 ## 14.14 Harness abstraction layer (pi first, BUILT 2026-11-14)
 
 ### Worker wiring (DONE 2026-11-14)
@@ -2605,4 +2613,214 @@ llauncher-managed llama-server lane, registered alongside the existing
 backends in `backends/__init__.py`. Follow-up: unit tests for the monitor
 tools, the llauncher backend and the GEPA checkpoint-resume path (all
 three shipped live-verified first).
+
+# 19. Issue intake 2026-11-24 — #35 / #36 / #37 worked into the plan
+
+Three issues filed 2026-11-24: **[#35](https://github.com/dropicallus/memnc/issues/35)** umbrella pivot (core mesh resilience,
+mid-turn HITL, evaluation-free self-improvement), **[#36](https://github.com/dropicallus/memnc/issues/36)** ELITE scaffold
+evolution on the existing planner→coder→critic pools, **[#37](https://github.com/dropicallus/memnc/issues/37)** hybrid
+coordination (System-1 graph router, deterministic harness gates, role LoRAs).
+
+Cited papers verified against the arXiv API on 2026-11-24 (titles/ids match):
+
+- arXiv:2611.21056 — Evaluation-Free Recursive Self-Improvement for Coding Agents (2026-11-16)
+- arXiv:2611.10501 — Sampling Is Not Curiosity: Why LLM Agents Should Investigate (2026-11-07)
+- arXiv:2606.24597 — Qwen-AgentWorld: Language World Models for General Agents (2026-06-23)
+- arXiv:2511.02135 — Graph-Based Alternatives to LLMs for Human Simulation (2025-11-03)
+
+## 19.0 Ordering (binding)
+
+Phase 1 before Phase 2, for two measured reasons:
+
+1. Every Phase-2 loop multiplies substrate failures. K parallel evolution
+   branches on a mesh that leaks claims produce K corrupted children, and the
+   ELITE gates cannot distinguish a bad hypothesis from a bad lease.
+2. HITL is the safety valve that makes unattended evolution acceptable at all.
+   `/approve_promote` (#36) is a special case of the same mid-turn human
+   channel that #35 asks for, so it must not be built twice.
+
+Therefore P5 (Phase 1) → P6 (ELITE) → P7 (router + role LoRAs). #37 is split:
+its deterministic harness gates are Phase 1 (P5.3–P5.4), its graph router and
+LoRA distillation are P7.
+
+## 19.1 Already built — do not re-implement
+
+| Issue item | Existing coverage | What is actually missing |
+| --- | --- | --- |
+| Mid-turn HITL (#35) | `WAIT_INPUT` state; `Event("ask"/"answer")`, `Action("ask")`; `clarify.py` (M16 peer consult before the human); `meshctl answer`; Telegram rendering | the worker holds a live slot while parked: no suspend/resume, no persisted continuation, no timeout policy for `WAIT_INPUT` |
+| Worker crash recovery (#35) | `orchestrator._reap_stale_claims`, `CLAIM_STALE_S` = 900 s, JetStream `ack_wait` + `max_deliver`, DLQ | release is time-based, not liveness-based: no heartbeat-age check, no explicit requeue event, no kill -9 test |
+| Approval surface (#35/#37) | T3 `/gate approve\|reject`, T7.5 `/approve` for model requests, single-writer `mesh.control` gate, `api_request` path | no pre-act hook — approval sits at the task gate, not in front of a destructive `run_shell` |
+| Pluggable harness (#35 item 3) | harness abstraction (pi, opencode, discuss, in-proc `ToolLoopHarness`), per-task harness selection | foreign harnesses do not route tool streams/approvals over NATS; no per-role MCP tool scoping |
+| Learning substrate (#37 layer 1) | `observations.py`, `experience.py` (ranked attention), `pheromone.py`, `synergy.py`, `experience_store.py` | no link-prediction router, no surprise signal, no probes |
+| Parametric memory (P2b) | external Unsloth/EWC training, LoRA-rank experiment | no trajectory export from the ledger, no per-role adapters, no Fisher-Merge step |
+
+## 19.2 P5 — Phase 1 slices
+
+### P5.1 Lease by liveness (issue #35, bullet 1)
+
+Files: `bus.py`, `orchestrator.py`, `schema.py`, `config.py`.
+
+- Track last-seen per node from `mesh.node.*.heartbeat` in the orchestrator.
+- `_reap_stale_claims` consults liveness, not only claim age: a claim whose
+  node has been silent for `HEARTBEAT_STALE_S` is released immediately; the
+  900 s `CLAIM_STALE_S` stays as the conservative fallback for a live-but-stuck
+  worker.
+- Reap publishes `mesh.task.<id>.requeue` with `reason`, writes one
+  `claim.reaped` ledger entry, increments the snapshot attempt counter, and
+  returns the task to the state the reaped role was serving.
+- Explicit DLQ on `max_deliver` exhaustion instead of silent redelivery.
+
+Test: `kill -9` a coder mid-task. A surviving worker completes the same task;
+the ledger shows exactly one `claim.reaped` and one completion; no duplicate
+DONE; no orphaned snapshot. Exit = #35 acceptance criterion 1.
+
+### P5.2 Mid-turn suspension (issue #35, bullet 2)
+
+Files: `schema.py`, `fsm.py`, `worker.py`, `orchestrator.py`, `telegram.py`,
+`console.py`.
+
+- `AWAITING_HUMAN` becomes the approval/steering state; `WAIT_INPUT` keeps
+  meaning "question". Same transport, different card.
+- Worker emits a pause request carrying a **continuation cursor** (role, step
+  index, pending tool call + args, worktree/scratch ref) instead of the full
+  message list; the orchestrator parks the task, acks/releases the JetStream
+  message, and stores the cursor in the snapshot.
+- On a human decision the orchestrator re-dispatches with `resume` + cursor;
+  the worker continues at the step and does not replay executed tools.
+- Timeout policy: `AWAITING_HUMAN` never expires on the role timeout; it has
+  its own `HUMAN_WAIT_MAX_S` (default off) and stays visible in roster/console.
+
+Test: park in the middle of a tool loop, kill the worker while parked, answer
+30 min later, task completes with no repeated side effects; ledger shows
+pause/resume with timestamps. Exit = #35 acceptance criterion 2.
+
+Open decision before coding: cursor-only vs full-context continuation. Recommend
+cursor + snapshot ref — small local models cannot afford a re-billed 30k prompt
+on every resume.
+
+### P5.3 Pre-act guard (issue #37, Phase 1B.1)
+
+Files: `mcp/`, `worker.py`, `fsm.py`.
+
+- Per-role tool allowlists: `coder` loses `git push`, deploy and task-closing
+  tools; it can only `submit_patch()`.
+- High-blast-radius `run_shell` patterns (`rm`, `git push`, migrations,
+  >5 files touched) are intercepted in MCP and turned into an `AWAITING_HUMAN`
+  card showing the exact command, cwd and diff stat.
+
+Test: table-driven — each pattern parks, each allowlisted command runs, and a
+stripped tool stays unavailable even when the model asks for it. Exit: no
+destructive command reaches the shell without a human approval event in the
+ledger.
+
+### P5.4 Blinded critic JSON gate (issue #37, Phase 1B.2)
+
+Files: `agent.py`, `fsm.py`, `verifier.py`.
+
+- Critic returns structured JSON (`verdict`, `blocking_issues[]`,
+  `needs_human_decision`); empty `blocking_issues` cannot produce DONE.
+- Context is blinded: task spec + `git diff` + raw test/linter exit codes only,
+  no coder chain-of-thought.
+- `revisions >= MAX_REVISIONS` or a duplicate diff hash escalates once to
+  `AWAITING_HUMAN` with graph/probe trace (no escalation loop).
+
+Test: prose-only critic output fails the gate; identical diff escalates exactly
+once.
+
+### P5.5 Foreign-harness approval routing (issue #35, bullet 3)
+
+Files: `harnesses/`, `worker.py`, `mcp/`.
+
+- Harness contract gains `on_tool_request` → NATS; pi/opencode prompts become
+  approval cards, the decision returns as the tool result.
+- In-proc `ToolLoopHarness` stays the reference implementation.
+
+Test: a pi coder requests a gated command, a human approves over Telegram, the
+harness continues; a denial returns a structured refusal to the model.
+Exit = #35 acceptance criterion 3.
+
+### P5.6 Confidence-triggered ask (issue #35, "ask if confidence < threshold")
+
+Files: `fsm.py`, `worker.py`, `config.py`.
+
+- Ship deterministic triggers first: revision count, repeated identical tool
+  call, zero-diff plans, plan steps without an acceptance criterion.
+- Model self-reported confidence is advisory only (not calibrated on small
+  local models); thresholds live in config per role.
+
+Test: each trigger fires the ask path exactly once per task. Recommend v1 ships
+deterministic triggers only.
+
+## 19.3 P6 — ELITE on existing worker pools (issue #36)
+
+No new roles (issue constraint): planner proposes, coder explores, critic
+integrates.
+
+- **P6.1** `meshctl evolve` + evolution ledger (`schema.py`, `cli.py`, `fsm.py`):
+  `EVOLVE_PROPOSE / EXPLORE / INTEGRATE / VERIFY`, ledger `m_t` = hypothesis,
+  parent SHA, gate results, integration rationale.
+- **P6.2** Worktree sandboxing (`worker.py`): one git worktree per hypothesis at
+  the exact parent SHA; K parallel coders never share a tree; cleanup on gate
+  failure.
+- **P6.3** Deterministic gates (`scripts/evolve_gates.py`, reuse `verifier.py`):
+  `G_exp` = non-empty diff + `py_compile` + clean import of `src/memnc/*` +
+  path allowlist; `G_acc` = fast pytest + MCP tool-call roundtrip + loop-bound
+  smoke. Zero LLM calls in both.
+- **P6.4** Synthesis prompt (`agent.py`): critic in `EVOLVE_INTEGRATE` classifies
+  children complementary / redundant / conflicting / incomplete and reimplements
+  one coherent `Δ_int` against the parent — never a diff concatenation.
+- **P6.5** Observability (`telegram.py`, `console.py`): per-generation summary
+  (accepted vs rejected gates, diff stats), promotion gated by
+  `/approve_promote` before workers hot-reload onto `Σ_{t+1}`.
+- **P6.6** First real run: 10 generations, width 7, in an idle window.
+  Acceptance: `Σ_{t+1}` passes `G_acc` plus the standard task suite with no
+  regression, and `m_t` is readable.
+
+No benchmark score feeds selection — that is the property being tested. The
+only score is the post-hoc acceptance gate.
+
+## 19.4 P7 — System-1 router, probes, role LoRAs (issue #37)
+
+- **P7.1** Heterogeneous observation graph + link predictor
+  (`graph_router.py`): subgroup / episode / choice nodes over the existing
+  deposit ledger, pheromone-weighted edges, 2-layer RGCN/GraphSAGE
+  (~110–420K params), CPU training from `meshctl ledger`, dot-product scores
+  feeding `INTAKE` and `AFTER_ACT` routing.
+- **P7.2** Cold start (`W_proj` from frozen LLM hidden states): deferred until
+  the graph has enough edges; start with task-type buckets.
+- **P7.3** `MODEL_WORLD` (`Qwen-AgentWorld-35B-A3B`) as its own node role:
+  predict outcome before execution, emit surprise when `Y_actual ≠ Y_pred`.
+  This is the **only** item in the whole intake with a hardware cost — 35B-A3B
+  needs a node that is not in the roster today. Decide placement before
+  promising the timeline.
+- **P7.4** Probes: `THEORIZE → PROBE → VERIFY`, `.memnc/probes/probe_<id>.py`,
+  <2 s, no side effects; a verified rule refines a graph edge, a falsified
+  theory escalates to `AWAITING_HUMAN`.
+- **P7.5** Role LoRAs: `scripts/export_trajectories.py` → ChatML/DPO per role
+  from high-pheromone + human-override traces; train planner/coder/critic
+  adapters; Fisher-Merge; pin adapters per node role in `NODE_ROLES`, never
+  hot-swap mid-session.
+
+#37 contains two variants of Layer 1 (pure pheromone thresholds with LLM
+routing vs GNN link prediction). Start with deterministic pheromone thresholds
+and only add the GNN once the ledger holds enough tasks to train on; otherwise
+the router is a random number generator with an arXiv citation.
+
+## 19.5 Rules
+
+- Nothing in P6/P7 starts before #35 acceptance criteria 1–3 pass on the live
+  two-node mesh.
+- Deterministic checks before model judgment, everywhere (gates, guards,
+  triggers).
+- Every new FSM state ships with: ledger event, Telegram rendering, console
+  rendering, and one test that survives a worker kill.
+- ELITE reuses planner/coder/critic; no new worker roles.
+- `MODEL_WORLD` is the only item allowed to add hardware.
+
+## 19.6 Issue → slice traceability
+
+- **#35** → P5.1, P5.2, P5.5, P5.6; acceptance gate over P5.\* and P6.\*.
+- **#36** → P6.1–P6.6.
+- **#37** → P5.3, P5.4, P7.1–P7.5.
+
 
