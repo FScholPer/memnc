@@ -701,6 +701,10 @@ class TaskSnapshot(BaseModel):
     depth: int = 0
     claimable: bool = False
     claimed_by: str = ""  # agent that CAS-claimed this task ("" = unclaimed)
+    # Epoch timestamp of the winning CAS claim (0 = pre-TTL legacy claim).
+    # Drives the orchestrator's stale-claim reaper: a claim whose worker died
+    # (restart, crash) must not orphan the task forever.
+    claimed_at_epoch: float = 0.0
     # M14: when set, the task pipeline is worker-driven — only this role may
     # claim it and the finishing worker advances the snapshot itself.
     next_role: str = ""

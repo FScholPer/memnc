@@ -56,6 +56,19 @@ from .version import code_version
 
 log = logging.getLogger(__name__)
 
+
+def now_iso_age_s(ts: str, now: float) -> float:
+    """Age in seconds of an ISO-8601 timestamp (``Z`` allowed).
+
+    Unparseable/empty timestamps return 0.0 so a malformed value is never
+    mistaken for a stale claim (the reaper must be conservative).
+    """
+    try:
+        return now - datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except (AttributeError, ValueError):
+        return 0.0
+
+
 # M8: live router cadence + subject for published rankings.
 ROUTER_INTERVAL = 10.0
 ROUTER_SUBJECT = "mesh.router.scores"
@@ -1343,6 +1356,7 @@ class Orchestrator:
             await asyncio.sleep(5)
             try:
                 await self._reap_timeouts()
+                await self._reap_stale_claims()
                 await self._check_fanouts()
                 await self._dispatch_claimed()
             except Exception:  # noqa: BLE001
@@ -1377,6 +1391,45 @@ class Orchestrator:
                         reason=f"{last.get('role')} timed out after {int(limit)}s",
                     ),
                 )
+
+    async def _reap_stale_claims(self) -> None:
+        """15.4.5: free CAS claims whose worker died mid-step (claim TTL).
+
+        Without this, restarting a worker (or a crash between claim and
+        release) orphans a non-terminal task forever: try_claim refuses to
+        re-claim and `_recover()` only handles RECEIVED/REVISE. A claim older
+        than settings.claim_ttl_s is cleared so the role can claim again.
+        Legacy claims (claimed_at_epoch == 0, written before this field
+        existed) fall back to snapshot.updated_at staleness.
+        """
+        limit = self.settings.claim_ttl_s
+        for snapshot in await self.bus.list_tasks():
+            if not self._owns(snapshot):
+                continue
+            if snapshot.state in TERMINAL_STATES or not snapshot.claimed_by:
+                continue
+            if snapshot.claimed_at_epoch > 0:
+                age = time.time() - snapshot.claimed_at_epoch
+            else:
+                age = now_iso_age_s(snapshot.updated_at, time.time())
+            if age <= limit:
+                continue
+            log.warning(
+                "stale claim reaped",
+                extra={
+                    "task_id": snapshot.task_id,
+                    "claimed_by": snapshot.claimed_by,
+                    "age_s": int(age),
+                },
+            )
+            await self._apply(
+                snapshot,
+                Event(
+                    "claim.expired",
+                    ok=True,
+                    reason=f"claim from {snapshot.claimed_by} reaped after {int(age)}s",
+                ),
+            )
 
     async def _dispatch_claimed(self) -> None:
         """M11 referee: dispatch claimable tasks that have been CAS-claimed.

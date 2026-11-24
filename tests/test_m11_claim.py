@@ -110,3 +110,24 @@ def test_stale_revision_is_cas_conflict():
         pytest.fail(f"expected CAS rejection, got {result}")
     except Exception:
         pass
+
+
+# -- stale-claim reaper helper ------------------------------------------------
+def test_now_iso_age_s_handles_z_and_naive_timestamps():
+    from datetime import datetime
+
+    from memnc.orchestrator import now_iso_age_s
+
+    now = 1_800_000_000.0
+    stamp = "2027-01-15T12:00:00Z"
+    expected = now - datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    assert now_iso_age_s(stamp, now) == expected
+    # naive ISO (no tz) must not raise
+    assert isinstance(now_iso_age_s("2027-01-15T12:00:00", now), float)
+
+
+def test_now_iso_age_s_unparseable_is_zero_not_stale():
+    from memnc.orchestrator import now_iso_age_s
+
+    assert now_iso_age_s("", 1_800_000_000.0) == 0.0
+    assert now_iso_age_s("not-a-date", 1_800_000_000.0) == 0.0
