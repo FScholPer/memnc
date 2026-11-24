@@ -14,12 +14,10 @@ import subprocess
 import httpx
 
 from .base import (
-    FAILED,
     HEALTH_DOWN,
     HEALTH_OK,
     HEALTH_OPEN,
     RUNNING,
-    STOPPED,
     UNKNOWN,
     ActionResult,
     BackendControl,
