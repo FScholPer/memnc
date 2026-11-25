@@ -1,7 +1,7 @@
 """14.13 Step 6: dreaming — deterministic consolidation over observations.
 
 Pure-logic core of the nightly dreaming job (design note in
-docs/roadmap-log.md, "Step 6 design"): cluster deposited observations by
+docs/roadmap.md §14.13, "Step 6 design"): cluster deposited observations by
 task-text similarity, emit task-pattern bullets, sweep for superseded
 route preferences, and summarize the current synergy rankings.
 

@@ -81,8 +81,8 @@ mechanical ones. Detailed, task-focused versions of these rules live in
 
 ## Docs
 
-- `docs/plan.md` is the current specification; `docs/roadmap.md` is the plan
-  (epics → tasks, with a table of contents); `docs/roadmap-log.md` is the dated
-  chronological log (evidence, measurements, design notes). Do not append dated
-  status notes to the plan or the spec — edit the relevant section in place; new
-  findings go into the log.
+- `docs/plan.md` is the current specification; `docs/roadmap.md` is the roadmap —
+  one document: Part I is the plan (epics → tasks, table of contents at the top),
+  Part II is the dated chronological log (evidence, measurements, design notes).
+  Do not append dated status notes to the plan or the spec — edit the relevant
+  section in place; new findings go into Part II.
