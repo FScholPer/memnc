@@ -1,0 +1,5 @@
+name: llauncher-catalog
+kind: standalone
+version: 0.2.0
+description: lLauncher model catalog as Hermes model-picker rows (no config entries)
+author: The memnc authors
