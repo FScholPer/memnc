@@ -88,9 +88,10 @@ x-mesh-service: &mesh-service
     # Cross-node ops (node-c/180) need an ssh client + the host's keys;
     # HOME=/tmp inside the worker, so ~/.ssh is /tmp/.ssh.
     - ${HOME:-/root}/.ssh:/tmp/.ssh:ro
-    # The model index lives on the host; expose it read-write so a mesh task
-    # can maintain it in place instead of writing a second copy.
-    - ${HOME:-/root}/ai_models:/workspace/ai_models
+    # The model index lives on the host. Read-only on purpose: a 7B coder
+    # rewrote the whole file with a stub when this was writable. Tasks propose
+    # their section in /workspace; the human applies it.
+    - ${HOME:-/root}/ai_models:/workspace/ai_models:ro
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
