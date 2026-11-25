@@ -94,6 +94,11 @@ SEED_RUN: tuple[tuple[str, str, int, int, int], ...] = (
 )
 
 _KEY_BAD = re.compile(r"[^a-zA-Z0-9._-]")
+# Live task-type slugs become NATS KV *subjects* ($kv.<bucket>.<key>), so a dot
+# in the slug splits the subject into extra tokens and an empty token (from
+# "192.168.8.") makes the publish invalid -> permission violation. Slugs are
+# therefore [a-z0-9-] only; the seed run keeps _KEY_BAD (keys may contain dots).
+_SLUG_BAD = re.compile(r"[^a-z0-9]+")
 
 
 def unsure_signal(*texts: str | None) -> bool:
@@ -378,5 +383,5 @@ def entries_by_task(entries: dict[str, PheromoneEntry]) -> dict[str, dict[str, P
 
 def task_type_from_prompt(task: str, max_chars: int = 40) -> str:
     """Stable task-type slug from the prompt head (live deposits)."""
-    slug = re.sub("-{2,}", "-", _KEY_BAD.sub("-", task.lower()))[:max_chars].strip("-")
+    slug = _SLUG_BAD.sub("-", task.lower())[:max_chars].strip("-")
     return slug or "live"

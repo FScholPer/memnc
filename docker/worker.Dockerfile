@@ -21,11 +21,16 @@ RUN pip install --no-cache-dir . \
 # redirected so the fixed path survives the ${UID:-1000} runtime user
 # (rootfs is read_only, /tmp is tmpfs — nothing may live under $HOME then).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends curl ca-certificates openssh-client \
     && rm -rf /var/lib/apt/lists/* \
     && HOME=/usr/local sh -c 'curl -fsSL https://opencode.ai/install | bash' \
     && ln -s /usr/local/.opencode/bin/opencode /usr/local/bin/opencode \
     && chmod -R a+rX /usr/local/.opencode
+
+# The compose stack runs as ${UID:-1000}:${GID:-1000} (host user). ssh(1)
+# refuses to start without a passwd entry for that uid, so give it one.
+RUN groupadd -g 1000 hostuser \
+    && useradd -u 1000 -g 1000 -M -s /usr/sbin/nologin hostuser
 
 USER 10001:10001
 

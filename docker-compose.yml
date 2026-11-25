@@ -85,6 +85,12 @@ x-mesh-service: &mesh-service
     # container). Nodes without ~/.config/opencode get an empty read-only
     # dir; harmless — the opencode harness only runs when a task asks for it.
     - ${HOME:-/root}/.config/opencode:/tmp/.config/opencode:ro
+    # Cross-node ops (node-c/180) need an ssh client + the host's keys;
+    # HOME=/tmp inside the worker, so ~/.ssh is /tmp/.ssh.
+    - ${HOME:-/root}/.ssh:/tmp/.ssh:ro
+    # The model index lives on the host; expose it read-write so a mesh task
+    # can maintain it in place instead of writing a second copy.
+    - ${HOME:-/root}/ai_models:/workspace/ai_models
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
