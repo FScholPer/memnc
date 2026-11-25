@@ -235,6 +235,17 @@ async def cmd_exp(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+async def cmd_dream(args: argparse.Namespace, settings: Settings) -> int:
+    """14.13 Step 6 build step 4: run the nightly dreaming pass (dry-run default).
+
+    Delegates to the job wrapper so the CLI verb and ``python -m
+    memnc.dreaming`` share one code path (gates, lock, store merge).
+    """
+    from memnc.dreaming_job import run_job
+
+    return await run_job(settings, apply=args.apply)
+
+
 async def cmd_obslast(args: argparse.Namespace, settings: Settings) -> int:
     """14.13 step 2: latest deposited observations, optional model filter."""
     from memnc.observations import format_observations
@@ -1137,6 +1148,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=50, help="max bullets to print (default 50)"
     )
     exp.set_defaults(func=cmd_exp)
+
+    dream = subparsers.add_parser(
+        "dream", help="14.13 Step 6: nightly dreaming pass (dry-run default)"
+    )
+    dream_mode = dream.add_mutually_exclusive_group()
+    dream_mode.add_argument(
+        "--dry-run", action="store_true", help="print bullets only (default)"
+    )
+    dream_mode.add_argument(
+        "--apply", action="store_true", help="merge bullets into the experience store"
+    )
+    dream.set_defaults(func=cmd_dream)
 
     obslast = subparsers.add_parser(
         "obslast", help="14.13 step 2: latest deposited task observations"

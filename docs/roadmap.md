@@ -2,6 +2,14 @@
 
 ## Built
 
+- **2026-11-25 — Dreaming job steps 3+4 (14.13 Step 6)**: systemd unit
+  `scripts/systemd/memnc-dreaming.service` + timer `memnc-dreaming.timer`
+  (one-shot nightly pass at 03:30 local, dormant by design until
+  `DREAMING_ENABLED=1`), launcher `scripts/dreaming.sh`, and the `meshctl
+  dream` verb (dry-run default, `--apply` merges, delegates to the same
+  `run_job` wrapper). All four dreaming build steps now BUILT; the job
+  remains dormant until the operator enables the flag. Tests in
+  `tests/test_dreaming_job.py`.
 - **2026-11-18 — Drafted-submit flow (14.11 item 11)**: `/submit` with no
   argument starts a guided prompt (Bot API question mode / ForceReply); the
   next plain chat message becomes the task via the same `task.submit` API
@@ -749,8 +757,12 @@ operator enabling `dreaming_enabled`. STATUS build step 2 (job wrapper
 `src/memnc/dreaming_job.py`, entry `python -m memnc.dreaming
 --dry-run|--apply`): skip-if-busy gate, single-writer `dream.lock` KV
 claim with 1h stale reclaim, dry-run default, `--apply` merges into the
-experience store; 9 tests. Next: step 3 systemd unit+timer,
-step 4 `meshctl dream` verb.
+experience store; 9 tests. STATUS build step 3 (systemd unit
+`scripts/systemd/memnc-dreaming.service` + timer `memnc-dreaming.timer`,
+launcher `scripts/dreaming.sh`, one-shot nightly pass at 03:30 local,
+dormant by design until `DREAMING_ENABLED=1`) BUILT. STATUS build step 4
+(`meshctl dream` verb, dry-run default, `--apply` merges, delegates to the
+same `run_job` wrapper; 1 test) BUILT.
 
 - **Stores walked (all already shipped):** `mesh_observations` KV (TaskObservation
   deposits), the file-backed experience store (experience_store.py bullets),
@@ -797,7 +809,9 @@ step 4 `meshctl dream` verb.
   bullet generation, sync functions, unit tests without network); (2) job
   wrapper `python -m memnc.dreaming --dry-run/--apply` (Bus, lock, store
   append); (3) systemd unit + timer under `scripts/systemd/`; (4) `meshctl
-  dream` read verb. Each step extends/tests/hardens separately.
+  dream` read verb. Each step extends/tests/hardens separately. Steps
+  1–4 BUILT (all dormant until `DREAMING_ENABLED=1`). Next: operator
+  sign-off to enable the flag, then Step 7 (distributed graphs).
 
 **Step 7 — Distributed graphs + god nodes (later).**
 Per-node graph shards, selective merge, god-node risk hook in claims.
