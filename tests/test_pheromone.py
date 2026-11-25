@@ -224,6 +224,11 @@ def test_task_type_slug():
     assert task_type_from_prompt("Fix the bug: colon handling") == "fix-the-bug-colon-handling"
     assert len(task_type_from_prompt("x" * 200)) == 40
     assert task_type_from_prompt("") == "live"
+    # The slug becomes part of a NATS KV subject: a dot (or a version string
+    # like 192.168.8.) would split it into extra/empty tokens and the publish
+    # is rejected as a permission violation.
+    slug = task_type_from_prompt("ai_models/INDEX.md um node-c (192.168.8.180) ergaenzen")
+    assert "." not in slug and not slug.startswith("-") and "--" not in slug
 
 
 def test_evaporate_fades_counters():
