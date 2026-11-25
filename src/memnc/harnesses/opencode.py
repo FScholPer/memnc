@@ -70,6 +70,31 @@ def _kill_tree(proc: asyncio.subprocess.Process) -> None:
             pass
 
 
+def stage_config() -> tuple[str, dict[str, str]]:
+    """Copy the read-only node config into a writable dir for this run.
+
+    opencode 1.19 writes a ``.gitignore`` next to its config on startup, so a
+    read-only bind mount of the node's config dir aborts every run with
+    "FileSystem.writeFile". The host file stays the source of truth; each run
+    copies it into the tmpfs and points the child at that copy.
+
+    Returns ``(config_path, env_overlay)``; both empty when the node ships no
+    config, in which case opencode uses its own defaults.
+    """
+    source = Path(os.environ.get("OPENCODE_CONFIG_SOURCE", "/opt/opencode-config"))
+    if not source.is_dir() or not (source / "opencode.json").is_file():
+        return "", {}
+    home = Path(os.environ.get("OPENCODE_HOME", "/tmp/.opencode-home"))
+    target = home / ".config/opencode"
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source / "opencode.json", target / "opencode.json")
+    config_path = str(target / "opencode.json")
+    return config_path, {
+        "XDG_CONFIG_HOME": str(target.parent),
+        "OPENCODE_CONFIG": config_path,
+    }
+
+
 def _maybe_clean_state() -> None:
     """Opt-in stale-state wipe (opencode hang workaround, see docstring)."""
     if os.environ.get("OPENCODE_CLEAN_STATE") == "1":
@@ -133,6 +158,7 @@ class OpenCodeHarness:
         workspace = Path(workspace)
         workspace.mkdir(parents=True, exist_ok=True)
         _maybe_clean_state()
+        _, env_overlay = stage_config()
         cmd = [
             self.opencode_bin,
             "run",
@@ -147,6 +173,7 @@ class OpenCodeHarness:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=str(workspace),
+                env=os.environ | env_overlay,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
