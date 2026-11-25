@@ -147,7 +147,7 @@ class Settings(BaseSettings):
     coder_timeout_s: int = 600
     # Harness for the coder role: "inproc" (default, the worker's own tool
     # loop) or "pi" (external pi CLI against the workspace; host-side for
-    # now -- see docs/roadmap.md 14.14). Harnesses share one contract
+    # now -- see docs/roadmap-log.md 14.14). Harnesses share one contract
     # (memnc.harnesses.Harness), so weak->strong handoff stays routing policy.
     harness_coder: str = "inproc"
     # DiscussHarness (14.14 item 4): models that debate the coder prompt as
