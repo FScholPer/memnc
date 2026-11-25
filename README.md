@@ -72,8 +72,8 @@ covered in [`docs/operations.md`](docs/operations.md).
 | Robustness: worker crash, timeout/requeue, orchestrator restart | 🚧 planned |
 | LAN model blob sharing between nodes | 🚧 planned |
 
-Design details and staged plan (epics → tasks): [`docs/roadmap.md`](docs/roadmap.md);
-chronological log with evidence: [`docs/roadmap-log.md`](docs/roadmap-log.md).
+Design details and staged plan: [`docs/roadmap.md`](docs/roadmap.md) — Part I is
+the epic/task plan with its table of contents, Part II the chronological log.
 Research-informed build order (26-paper corpus → build/prototype/observe triage,
 brownfield status): [`docs/plan.md`](docs/plan.md) §19.
 
@@ -82,8 +82,7 @@ brownfield status): [`docs/plan.md`](docs/plan.md) §19.
 | Document | Contents |
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | The specification: architecture, wire protocol, orchestrator, workers, deployment, security |
-| [`docs/roadmap.md`](docs/roadmap.md) | The plan: ten epics (E1–E10), tasks with status and log references |
-| [`docs/roadmap-log.md`](docs/roadmap-log.md) | Chronological log: built items, measurements, design notes (§14–§19) |
+| [`docs/roadmap.md`](docs/roadmap.md) | One document: Part I the plan (ten epics E1–E10, tasks with status), Part II the chronological log (§14–§19) |
 | [`docs/architecture.md`](docs/architecture.md) | Component and data-flow view |
 | [`docs/protocol.md`](docs/protocol.md) | NATS subjects and envelope format |
 | [`docs/operations.md`](docs/operations.md) | Running and operating the mesh |

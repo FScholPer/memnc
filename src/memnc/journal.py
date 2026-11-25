@@ -1,6 +1,6 @@
 """15.4.3 attempt journal: per-attempt checkpoint notes carried across retries.
 
-Design (docs/roadmap-log.md 15.4.3): every failed attempt that schedules a retry
+Design (docs/roadmap.md §15.4.3): every failed attempt that schedules a retry
 appends one bounded entry to the snapshot, recording what the attempt
 completed (stage, produced files, implementation summary) and where it
 failed. The next attempt's prompt renders these notes so planner/coder/critic
