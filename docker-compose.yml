@@ -81,10 +81,13 @@ x-mesh-service: &mesh-service
     # H4: per-node NKey seeds live here (secrets/<node>.nk, mode 0600,
     # never committed). Point NATS_NKEYS_SEED at /secrets/<node>.nk.
     - ./secrets:/secrets:ro
-    # 15.4.1: per-node opencode provider config (HOME=/tmp inside the
-    # container). Nodes without ~/.config/opencode get an empty read-only
-    # dir; harmless — the opencode harness only runs when a task asks for it.
-    - ${HOME:-/root}/.config/opencode:/tmp/.config/opencode:ro
+    # 15.4.1: per-node opencode provider config. Read-only on purpose, and
+    # NOT mounted at the path opencode uses: 1.19 writes a .gitignore next to
+    # its config on startup, so a read-only config dir aborts every run. The
+    # harness copies opencode.json into the tmpfs and points the child there
+    # (OPENCODE_CONFIG_SOURCE). Nodes without the dir get an empty one —
+    # harmless, the harness only runs when a task asks for it.
+    - ${HOME:-/root}/.config/opencode:/opt/opencode-config:ro
     # Cross-node ops (node-c/180) need an ssh client + the host's keys;
     # HOME=/tmp inside the worker, so ~/.ssh is /tmp/.ssh.
     - ${HOME:-/root}/.ssh:/tmp/.ssh:ro

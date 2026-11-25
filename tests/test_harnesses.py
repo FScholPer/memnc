@@ -16,10 +16,31 @@ from memnc.harnesses import (
     register,
 )
 from memnc.harnesses.inproc import ToolLoopHarness
+from memnc.harnesses.opencode import stage_config
 from memnc.harnesses.pi import PiHarness, parse_events
 from memnc.harnesses.workspace import changed_file_contents
 from memnc.schema import Envelope, Kind, Role
 from memnc.worker import Worker
+
+
+def test_stage_config_copies_node_config_into_writable_home(tmp_path, monkeypatch):
+    source = tmp_path / "node-config"
+    source.mkdir()
+    (source / "opencode.json").write_text('{"provider": {}}')
+    monkeypatch.setenv("OPENCODE_CONFIG_SOURCE", str(source))
+    monkeypatch.setenv("OPENCODE_HOME", str(tmp_path / "home"))
+
+    config_path, overlay = stage_config()
+
+    assert Path(config_path).read_text() == '{"provider": {}}'
+    assert overlay["OPENCODE_CONFIG"] == config_path
+    # opencode writes next to its config, so the copy must not be the ro mount
+    assert str(source) not in config_path
+
+
+def test_stage_config_is_empty_without_a_node_config(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENCODE_CONFIG_SOURCE", str(tmp_path / "missing"))
+    assert stage_config() == ("", {})
 
 
 def _line(event: dict) -> str:
