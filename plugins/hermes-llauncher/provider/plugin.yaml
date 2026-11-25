@@ -1,0 +1,5 @@
+name: llauncher
+kind: model-provider
+version: 0.2.0
+description: lLauncher's running models as Hermes providers (llauncher-<model>)
+author: The memnc authors

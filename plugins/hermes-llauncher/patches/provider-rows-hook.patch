@@ -1,0 +1,76 @@
+diff --git a/hermes_cli/model_switch_providers.py b/hermes_cli/model_switch_providers.py
+index 77e6a52c060..c61ba5cf609 100644
+--- a/hermes_cli/model_switch_providers.py
++++ b/hermes_cli/model_switch_providers.py
+@@ -1309,10 +1309,53 @@ def list_authenticated_providers(
+     _lap_bare_custom_row(b, custom_providers)
+     if custom_providers and isinstance(custom_providers, list):
+         _lap_custom_provider_rows(b, custom_providers)
++    _lap_plugin_rows(b, for_picker=b.for_picker, current_provider=current_provider,
++                     current_base_url=current_base_url, current_model=current_model)
+ 
+     return _finalize_picker_rows(b.results, user_providers, current_model)
+ 
+ 
++def _lap_plugin_rows(b: "_PickerBuild", *, for_picker: bool, current_provider: str,
++                     current_base_url: str, current_model: str) -> None:
++    """Merge ``provider_rows`` rows from plugins (a central catalog like lLauncher needs no
++    ``custom_providers`` entries). Fail-open: a raising/slow plugin never breaks the picker."""
++    try:
++        from hermes_cli.plugins import invoke_hook
++    except Exception:
++        return
++    try:
++        supplied = invoke_hook(
++            "provider_rows", for_picker=for_picker, current_provider=current_provider,
++            current_base_url=current_base_url, current_model=current_model,
++        )
++    except Exception:
++        return
++    for supplied_rows in supplied or []:
++        if isinstance(supplied_rows, dict):
++            supplied_rows = [supplied_rows]
++        if not isinstance(supplied_rows, list):
++            continue
++        for row in supplied_rows:
++            if not isinstance(row, dict) or not row.get("slug"):
++                continue
++            slug = str(row["slug"])
++            if slug.lower() in b.seen_slugs:
++                continue
++            out = {
++                "slug": slug,
++                "name": row.get("name") or slug,
++                "is_current": bool(row.get("is_current")) or slug.lower() == b.current_provider_norm,
++                "is_user_defined": bool(row.get("is_user_defined", True)),
++                "models": list(row.get("models") or []),
++                "total_models": int(row.get("total_models") or len(row.get("models") or [])),
++                "source": row.get("source") or "plugin",
++                "api_url": row.get("api_url") or "",
++                "native_catalog_empty": bool(row.get("native_catalog_empty")),
++            }
++            b.results.append(out)
++            b.seen_slugs.add(slug.lower())
++
++
+ def _finalize_picker_rows(results: list, user_providers, current_model: str) -> list:
+     """Post-passes: drop ``providers.<name>.enabled: false`` rows, inject the current model, sort."""
+     # The enabled post-filter covers built-in rows (sections 1-2) that bypass the per-section
+diff --git a/hermes_cli/plugins.py b/hermes_cli/plugins.py
+index 8dfe4b6d3d7..61cf29632c3 100644
+--- a/hermes_cli/plugins.py
++++ b/hermes_cli/plugins.py
+@@ -166,6 +166,13 @@ VALID_HOOKS: set[str] = {
+     # provider, model, language, prompt, source. Return None or a dict mutating prompt/language/
+     # model (registration order, last-writer-wins; file_path is read-only).
+     "pre_transcription",
++    # provider_rows: extra model-picker rows supplied by a plugin (no config entries).
++    # Kwargs: for_picker, current_provider, current_base_url, current_model.
++    # Return a list of row dicts shaped like _PickerBuild.add_endpoint_row()
++    # (slug, name, is_current, is_user_defined, models, total_models, source, api_url,
++    # native_catalog_empty) or a bare dict for one row. Rows are merged after the
++    # config-derived sections and before _finalize_picker_rows() sorts/dedups them.
++    "provider_rows",
+     # Kanban task observers (hermes_cli.kanban_db), fired AFTER the DB commit so a slow plugin never
+     # holds the SQLite write lock; returns ignored. claimed fires in the DISPATCHER right before
+     # spawn; completed/blocked fire in the WORKER (or whichever process drove it). Kwargs: task_id,
