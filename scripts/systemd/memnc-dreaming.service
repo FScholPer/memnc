@@ -1,0 +1,23 @@
+[Unit]
+Description=memnc dreaming job (nightly consolidation, 14.13 Step 6)
+# One-shot: the timer starts this, it runs one consolidation pass and exits.
+# No After=network-online.target dependency is required here because the
+# job's own skip-if-busy gate and single-writer lock make a mid-flight
+# start safe (it skips rather than races the CAS layer).
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/memnc
+ExecStart=%h/memnc/scripts/dreaming.sh
+# The job is dormant by design: with DREAMING_ENABLED unset it prints a
+# notice and exits 0, so enabling this timer is harmless before the
+# operator flips the flag (the human sign-off step).
+# A pass runs in well under a minute; the 10-minute cap is a safety net,
+# not an expectation.
+TimeoutStartSec=600
+# No Restart= : a failed one-shot should surface in the journal, not loop.
+# Stale-claim reclaim (dream.lock, 1h) already guards against a crashed
+# run leaving a dangling lock.
+
+[Install]
+WantedBy=multi-user.target

@@ -224,3 +224,51 @@ def test_bullets_roundtrip_with_core():
     bullets = dream_bullets(obs)
     assert bullets  # the wrapper must be fed a dict of topic -> texts
     assert all(isinstance(v, list) for v in bullets.values())
+
+
+def test_cmd_dream_delegates_to_run_job():
+    """14.13 Step 6 build step 4: the `meshctl dream` verb delegates to run_job.
+
+    Verifies the CLI subcommand is wired and that cmd_dream forwards the
+    apply flag to the job wrapper (dry-run is the default: apply=False).
+    """
+    import memnc.dreaming_job as dj
+    from memnc import cli
+
+    parser = cli.build_parser()
+    ns = parser.parse_args(["dream"])
+    assert ns.func is cli.cmd_dream
+    assert ns.apply is False  # dry-run is the default
+
+    ns_apply = parser.parse_args(["dream", "--apply"])
+    assert ns_apply.apply is True
+
+    # cmd_dream imports run_job inside the function; monkeypatch the module.
+    called = {}
+
+    class _S:
+        pass
+
+    settings = _S()
+
+    async def _fake_run_job(settings, apply):
+        called["apply"] = apply
+        return 0
+
+    orig = dj.run_job
+    dj.run_job = _fake_run_job
+    try:
+        rc = asyncio.run(cli.cmd_dream(ns, settings))
+    finally:
+        dj.run_job = orig
+    assert rc == 0
+    assert called["apply"] is False
+
+    called.clear()
+    dj.run_job = _fake_run_job
+    try:
+        rc = asyncio.run(cli.cmd_dream(ns_apply, settings))
+    finally:
+        dj.run_job = orig
+    assert rc == 0
+    assert called["apply"] is True

@@ -1,0 +1,16 @@
+[Unit]
+Description=memnc dreaming timer (nightly, 14.13 Step 6)
+
+[Timer]
+# Nightly, one invocation: consolidate deposited observations into the
+# experience store. 03:30 local time — off-peak, when the mesh is most
+# likely idle (the skip-if-busy gate skips a mid-flight run cleanly).
+OnCalendar=*-*-* 03:30:00
+# If the mesh was busy at 03:30 the pass is skipped; a short persistence
+# window lets the timer catch the next idle window without piling up.
+Persistent=true
+# Randomized offset: do not sync with other node timers.
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target
