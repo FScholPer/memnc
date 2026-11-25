@@ -31,6 +31,11 @@ BACKLOG_TERMINAL = {BACKLOG_DONE, BACKLOG_FAILED}
 
 MAX_ATTEMPTS = 3
 
+# How long the driver waits for one submitted mesh task before it treats the
+# attempt as failed. Without a bound, a single task that never turns terminal
+# parks the driver forever and the rest of the backlog never starts.
+WATCH_TIMEOUT_S = 30 * 60
+
 
 def _now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

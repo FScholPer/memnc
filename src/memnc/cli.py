@@ -22,9 +22,14 @@ from .backlog import (
     make_strong_retry,
     should_strong_retry,
 )
+from .backlog import (
+    WATCH_TIMEOUT_S as BACKLOG_WATCH_TIMEOUT_S,
+)
 from .backup import dump_buckets, restore_buckets
 from .bus import Bus
 from .config import Settings, get_settings
+from .roadmap import missing as missing_roadmap_rows
+from .roadmap import open_tasks
 from .schema import (
     SUBJECT_CONTROL,
     SUBJECT_EVENTS,
@@ -908,7 +913,22 @@ async def _driver_cycle(client, settings: Settings, driver: str) -> bool:
             harness=claimed.harness,
         )
         await store.mark(claimed.id, "claimed", mesh_task_id=mesh_task_id)
-        event = await _backlog_watch(client, mesh_task_id)
+        # A watched task that never reaches a terminal state used to wedge the
+        # whole driver: one stuck submission meant every later backlog entry
+        # sat at "planned" for hours. Bound the wait and treat the expiry as
+        # a failed attempt so the retry budget can move the work along.
+        try:
+            event = await asyncio.wait_for(
+                _backlog_watch(client, mesh_task_id), timeout=BACKLOG_WATCH_TIMEOUT_S
+            )
+        except TimeoutError:
+            event = "watch.timeout"
+            print(
+                f"{driver}: {claimed.id} watch timed out after "
+                f"{BACKLOG_WATCH_TIMEOUT_S}s (mesh {mesh_task_id})",
+                file=sys.stderr,
+                flush=True,
+            )
         final = "done" if event in ("task.done", "state.done") else "failed"
         await store.mark(claimed.id, final, mesh_task_id=mesh_task_id)
         print(f"{driver}: {claimed.id} -> {final} (mesh {mesh_task_id})", flush=True)
@@ -963,6 +983,43 @@ async def _backlog_plan(args: argparse.Namespace, settings: Settings) -> int:
             )
             prev_id = task.id
             print(f"added {task.id} [{i}/{len(tasks)}] deps={deps} {title}")
+        return 0
+    finally:
+        await client.close()
+
+
+async def cmd_roadmap_sync(args: argparse.Namespace, settings: Settings) -> int:
+    """Import the roadmap's open rows into the backlog.
+
+    The roadmap is the map, the backlog is the queue; this is the one-way
+    sync that stops every open row from being retyped as a task prompt.
+    Idempotent via the ``[T<id>]`` marker in the backlog title.
+    """
+    from pathlib import Path
+
+    path = Path(args.file).expanduser()
+    rows = open_tasks(path.read_text(encoding="utf-8"))
+    client = await _connect(settings)
+    try:
+        store = await _backlog_store(client)
+        existing = await store.list()
+        pending = missing_roadmap_rows(rows, [t.title for t in existing])
+        if args.dry_run:
+            for row in pending:
+                print(f"{row.status} {row.task_id}  {row.epic}: {row.title}")
+            print(f"--dry-run: {len(pending)} of {len(rows)} open rows would be added")
+            return 0
+        for row in pending:
+            task = await store.add(
+                title=row.backlog_title(),
+                prompt=row.backlog_prompt(),
+                plan_id=args.plan_id,
+            )
+            print(f"{task.id}  {row.task_id}  {row.title}")
+        print(
+            f"roadmap-sync: {len(pending)} added, "
+            f"{len(rows) - len(pending)} already in the backlog"
+        )
         return 0
     finally:
         await client.close()
@@ -1368,6 +1425,17 @@ def build_parser() -> argparse.ArgumentParser:
     backlog_run.add_argument("--node", default="", help="orchestrator node to submit to")
     backlog_run.add_argument("--idle-sleep", type=float, default=10.0)
     backlog_run.set_defaults(func=cmd_backlog_run)
+
+    roadmap_sync = subparsers.add_parser(
+        "roadmap-sync",
+        help="import the roadmap's open rows (\u2610/\U0001f7e1) into the backlog",
+    )
+    roadmap_sync.add_argument(
+        "--file", default="docs/roadmap.md", help="roadmap document (default: docs/roadmap.md)"
+    )
+    roadmap_sync.add_argument("--plan-id", default="roadmap", help="plan id for new entries")
+    roadmap_sync.add_argument("--dry-run", action="store_true", help="print without adding")
+    roadmap_sync.set_defaults(func=cmd_roadmap_sync)
 
     return parser
 
