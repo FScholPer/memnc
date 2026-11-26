@@ -1170,12 +1170,9 @@ class Orchestrator:
         store is a side channel: a write failure costs one bullet, nothing
         else.
         """
-        from .experience_store import ExperienceStore, record_observation
+        from .experience_store import record_observation_locked
 
-        store = ExperienceStore(self.settings.experience_store_path).load()
-        added = record_observation(store, observation)
-        if added:
-            store.save()
+        record_observation_locked(self.settings.experience_store_path, observation)
 
     async def _dispatch(self, snapshot: TaskSnapshot, role: Role) -> None:
         timeout_s = self.settings.timeout_for(role)

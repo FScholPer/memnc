@@ -1446,11 +1446,9 @@ class Worker:
                 )
 
     def _record_experience(self, observation: TaskObservation) -> None:
-        from .experience_store import ExperienceStore, record_observation
+        from .experience_store import record_observation_locked
 
-        store = ExperienceStore(self.settings.experience_store_path).load()
-        if record_observation(store, observation):
-            store.save()
+        record_observation_locked(self.settings.experience_store_path, observation)
 
     async def _acceptance_gate(self, snapshot: TaskSnapshot) -> None:
         """15.4.5 gap 2: deterministic acceptance checks from plan criteria.
