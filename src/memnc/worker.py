@@ -650,6 +650,15 @@ class Worker:
             await self.bus.dead_letter(envelope, "unknown task")
             await message.ack()
             return
+        if snapshot.state in TERMINAL_STATES:
+            # A command that outlived its task (redelivery after a finish or
+            # cancel) must not run again: its side effects are already decided.
+            log.info(
+                "skipping command for a finished task",
+                extra={"task_id": envelope.task_id, "command_id": envelope.id},
+            )
+            await message.ack()
+            return
         # T7: planner allocation gate — a command with an alloc claim is for
         # the claimed node only, unless the claimed model is loaded here.
         alloc = envelope.payload.get("alloc") or None
