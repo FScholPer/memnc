@@ -22,6 +22,7 @@ from .fsutil import apply_artifacts, artifact_line_counts, verify_artifacts
 from .harnesses import get_harness
 from .harnesses.workspace import changed_file_contents
 from .mcp.client import MCPClient
+from .mcp.tools_shell import minimal_env
 from .observations import TaskObservation
 from .pheromone import SELF_REFLECT_EDGE
 from .roles import (
@@ -1504,11 +1505,13 @@ class Worker:
                 str(path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                env=minimal_env(),
             )
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
             except TimeoutError:
                 proc.kill()
+                await proc.wait()
                 evidence.append(f"py_compile {f.path}: TIMEOUT")
                 passed = False
                 continue
@@ -1525,11 +1528,13 @@ class Worker:
                 str(path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                env=minimal_env(),
             )
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
             except TimeoutError:
                 proc.kill()
+                await proc.wait()
                 evidence.append(f"run {py_files[0].path}: TIMEOUT")
                 passed = False
             else:
