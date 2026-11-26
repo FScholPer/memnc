@@ -92,6 +92,7 @@ class Allocator:
         self._seen_at: dict[str, float] = {}
         self._claims: dict[str, str] = {}  # task_id → node
         self._reserved_mb: dict[str, float] = {}  # node → reserved VRAM
+        self._claim_size: dict[str, float] = {}  # task_id → reserved MB
 
     def update_health(self, *healths: NodeHealth) -> None:
         for health in healths:
@@ -149,6 +150,21 @@ class Allocator:
             AllocResult(ok=True, model=model, node=node), task_id, size_mb
         )
 
+    def release(self, task_id: str) -> None:
+        """Free a task's claim and VRAM reservation once the task is terminal.
+
+        Without this, reservations only grew and each node eventually looked
+        full to the planner.
+        """
+        node = self._claims.pop(task_id, "")
+        size = self._claim_size.pop(task_id, 0.0)
+        if node and size:
+            left = self._reserved_mb.get(node, 0.0) - size
+            if left > 0:
+                self._reserved_mb[node] = left
+            else:
+                self._reserved_mb.pop(node, None)
+
     def _claim(
         self, result: AllocResult, task_id: str, size_mb: float
     ) -> AllocResult:
@@ -157,6 +173,8 @@ class Allocator:
         node = result.node or ""
         if node and size_mb:
             self._reserved_mb[node] = self._reserved_mb.get(node, 0.0) + size_mb
+            if task_id:
+                self._claim_size[task_id] = size_mb
         logging.getLogger(__name__).info(
             "alloc claim: task=%s model=%s node=%s size_mb=%.0f reserved=%.0f",
             task_id or "-",
@@ -1018,6 +1036,9 @@ class Orchestrator:
         # 14.13 step 1: deposit an observation for every terminal transition
         # into the experience graph. Duck-typed + best effort: a broken
         # observation store must never fail the task lifecycle itself.
+        if result.state in TERMINAL_STATES and getattr(self, "_allocator", None) is not None:
+            self._allocator.release(snapshot.task_id)
+
         if result.state in TERMINAL_STATES and hasattr(self.bus, "deposit_observation"):
             await self._deposit_observation(snapshot)
 
