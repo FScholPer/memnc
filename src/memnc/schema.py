@@ -862,3 +862,24 @@ class ModelIntent(BaseModel):
     op: ModelIntentOp
     model: str = ""
     node: str = ""
+
+
+MIN_REQUEST_PREFIX = 6
+
+
+def resolve_request_id(prefix: str, request_ids: list[str]) -> tuple[str, list[str]]:
+    """Resolve a model-request id or unique prefix; ("", candidates) when refused.
+
+    An exact id wins. Otherwise the prefix must be at least MIN_REQUEST_PREFIX
+    characters and match exactly one id, so an empty or one-character prefix
+    can never approve the first request in the list.
+    """
+    prefix = prefix.lstrip("#").strip()
+    if prefix in request_ids:
+        return prefix, []
+    if len(prefix) < MIN_REQUEST_PREFIX:
+        return "", []
+    matches = sorted({i for i in request_ids if i.startswith(prefix)})
+    if len(matches) == 1:
+        return matches[0], []
+    return "", matches

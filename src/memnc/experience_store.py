@@ -21,6 +21,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .fsutil import atomic_write
 from .observations import TaskObservation
 
 # One merge may retire at most this fraction of a topic's existing bullets
@@ -84,10 +85,9 @@ class ExperienceStore:
     def save(self) -> None:
         if not self.path:
             raise ValueError("store has no backing file")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        atomic_write(
+            self.path,
             json.dumps([b.to_dict() for b in self.bullets], indent=2) + "\n",
-            encoding="utf-8",
         )
 
     # -- reads -------------------------------------------------------------

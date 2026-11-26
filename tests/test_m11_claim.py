@@ -131,3 +131,39 @@ def test_now_iso_age_s_unparseable_is_zero_not_stale():
 
     assert now_iso_age_s("", 1_800_000_000.0) == 0.0
     assert now_iso_age_s("not-a-date", 1_800_000_000.0) == 0.0
+
+
+def test_stale_claim_is_cleared_so_the_task_can_be_reclaimed():
+    import asyncio
+    import time
+    from types import SimpleNamespace
+
+    from memnc.orchestrator import Orchestrator
+    from memnc.schema import TaskSnapshot, TaskState
+
+    snap = TaskSnapshot(
+        task_id="t-stale",
+        trace_id="tr",
+        task="x",
+        state=TaskState.CODING,
+        claimed_by="node-a-coder",
+        claimed_at_epoch=time.time() - 10_000,
+    )
+    stored: list[TaskSnapshot] = []
+
+    class _Bus:
+        async def list_tasks(self):
+            return [snap]
+
+        async def put_snapshot(self, s):
+            stored.append(s)
+
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.settings = SimpleNamespace(claim_ttl_s=60)
+    orch.bus = _Bus()
+    orch._owns = lambda s: True  # type: ignore[method-assign]
+    asyncio.run(orch._reap_stale_claims())
+    assert len(stored) == 1
+    assert stored[0].claimed_by == ""
+    assert stored[0].claimed_at_epoch == 0.0
+    assert stored[0].history[-1].event == "claim.expired"

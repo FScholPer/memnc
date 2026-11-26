@@ -23,6 +23,7 @@ import shutil
 import signal
 from pathlib import Path
 
+from ..mcp.tools_shell import harness_env
 from . import HarnessCaps, HarnessResult, register
 from .workspace import workspace_diff
 
@@ -173,7 +174,7 @@ class OpenCodeHarness:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=str(workspace),
-                env=os.environ | env_overlay,
+                env=harness_env("OPENCODE_ENV_PASS") | env_overlay,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,

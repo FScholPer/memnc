@@ -111,3 +111,25 @@ async def test_tool_results_from_previous_command_are_reexecuted(tmp_path):
         Envelope(id="cmd2", task_id="t1", trace_id="tr1", kind="command"), "t", {}
     )
     assert len(worker.tools.calls) == 2
+
+
+def test_verify_gate_rejects_paths_outside_workspace(tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+
+    from memnc.worker import Worker
+
+    outside = tmp_path / "outside.py"
+    outside.write_text("print('x')\n")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    worker = Worker.__new__(Worker)
+    worker.settings = SimpleNamespace(workspace_root=str(ws))
+    critique = SimpleNamespace(approved=False, summary="", issues=[])
+    snap = SimpleNamespace(
+        critique=critique,
+        code=SimpleNamespace(files=[SimpleNamespace(path=str(outside))]),
+    )
+    asyncio.run(worker._verify_gate(snap))
+    assert critique.approved is False
+    assert "REJECTED" in critique.issues[0].issue

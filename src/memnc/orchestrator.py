@@ -1422,14 +1422,11 @@ class Orchestrator:
                     "age_s": int(age),
                 },
             )
-            await self._apply(
-                snapshot,
-                Event(
-                    "claim.expired",
-                    ok=True,
-                    reason=f"claim from {snapshot.claimed_by} reaped after {int(age)}s",
-                ),
-            )
+            reason = f"claim from {snapshot.claimed_by} reaped after {int(age)}s"
+            snapshot.claimed_by = ""
+            snapshot.claimed_at_epoch = 0.0
+            snapshot.record("claim.expired", reason)
+            await self.bus.put_snapshot(snapshot)
 
     async def _dispatch_claimed(self) -> None:
         """M11 referee: dispatch claimable tasks that have been CAS-claimed.

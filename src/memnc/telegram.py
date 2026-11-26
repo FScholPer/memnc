@@ -36,6 +36,7 @@ from .schema import (
     SUBJECT_EVENTS,
     ModelRequest,
     model_pull_allowed,
+    resolve_request_id,
 )
 
 log = logging.getLogger(__name__)
@@ -908,13 +909,16 @@ class TelegramObserver:
     async def _decide(self, chat: str, action: str, request_id: str) -> None:
         """The ONLY write path: approve/reject on a model request."""
         status = "approved" if action == "approve" else "rejected"
-        matches = [
-            r for r in await self.bus.list_model_requests() if r.request_id.startswith(request_id)
-        ]
-        if not matches:
-            await self.bot.send_message(chat, f"no model request: {request_id}")
+        requests = await self.bus.list_model_requests()
+        rid, candidates = resolve_request_id(request_id, [r.request_id for r in requests])
+        if not rid:
+            if candidates:
+                shown = ", ".join(candidates[:5])
+                await self.bot.send_message(chat, f"ambiguous request id {request_id}: {shown}")
+            else:
+                await self.bot.send_message(chat, f"no model request: {request_id}")
             return
-        request = matches[0]
+        request = next(r for r in requests if r.request_id == rid)
         if request.status != "pending":
             await self.bot.send_message(chat, f"{request.request_id} already {request.status}")
             return

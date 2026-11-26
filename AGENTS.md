@@ -19,9 +19,11 @@ mechanical ones. Detailed, task-focused versions of these rules live in
   provenance/status stamps in code or docs. Git history is the record of
   when and by whom — files are not a memory. (arXiv IDs and version numbers
   are not dates; they stay.)
-- **No personal names or local paths.** Never commit author names outside git
-  metadata, usernames, or absolute home paths (`/home/...`). Use CLI args or
-  env vars instead.
+- **No personal names, handles or local paths in files.** The corporate
+  author address in git metadata is the only identity the owner publishes on
+  purpose. Do not put personal names, GitHub usernames, other identifiers, or
+  absolute home paths (`/home/...`, `/Users/...`) in file content or commit
+  messages. Use CLI args or env vars instead.
 
 ## Repository layout
 
@@ -78,6 +80,11 @@ mechanical ones. Detailed, task-focused versions of these rules live in
 - **Tool scope is per role, not per worker**, and no mesh port runs
   unauthenticated beyond localhost. The full trust model lives in
   `.agents/skills/security.md` and SECURITY.md.
+- **Sandboxing of model-written code is optional and set per node.**
+  Settings such as `BENCH_ISOLATE` are opt-in, and each node decides for
+  itself; the repo does not assume they are on. Whatever the setting, model-
+  driven child processes get the allow-listed environment (`minimal_env()`),
+  never the worker's full environment.
 
 ## Docs
 
