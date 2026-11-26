@@ -360,7 +360,7 @@ class BenchEngine:
         """Arm P: pheromone-routed strategy selection over the rescue chain.
 
         Each attempt asks route_strategy() over the seeded field (SEED_RUN,
-        the 2026-11-15 hard-tier full run), runs the chosen edge's arm path,
+        the hard-tier full run), runs the chosen edge's arm path,
         and folds the per-attempt verdict back into the field. The checker
         verdicts gate ONLY arm escalation (the A -> B -> C rescue floor),
         never the inner revision loops — same leakage boundary as the other
