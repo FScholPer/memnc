@@ -18,7 +18,13 @@ from .backends import make_backend
 from .bus import Bus, emit_debate
 from .config import Settings, get_settings
 from .fsm import Event, done_block_reason, transition
-from .fsutil import apply_artifacts, artifact_line_counts, verify_artifacts
+from .fsutil import (
+    PathEscapeError,
+    apply_artifacts,
+    artifact_line_counts,
+    safe_path,
+    verify_artifacts,
+)
 from .harnesses import get_harness
 from .harnesses.workspace import changed_file_contents
 from .mcp.client import MCPClient
@@ -1493,7 +1499,12 @@ class Worker:
         evidence: list[str] = []
         passed = True
         for f in py_files:
-            path = root / f.path
+            try:
+                path = safe_path(root, f.path)
+            except PathEscapeError:
+                evidence.append(f"py_compile {f.path}: REJECTED (outside workspace)")
+                passed = False
+                continue
             if not path.is_file():
                 evidence.append(f"py_compile {f.path}: MISSING FILE")
                 passed = False
@@ -1522,7 +1533,7 @@ class Worker:
             if proc.returncode != 0:
                 passed = False
         if passed and len(py_files) == 1:
-            path = root / py_files[0].path
+            path = safe_path(root, py_files[0].path)
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 str(path),
