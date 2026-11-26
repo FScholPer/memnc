@@ -133,3 +133,35 @@ def test_verify_gate_rejects_paths_outside_workspace(tmp_path):
     asyncio.run(worker._verify_gate(snap))
     assert critique.approved is False
     assert "REJECTED" in critique.issues[0].issue
+
+
+def test_mesh_submit_reports_orchestrator_rejection_as_failure():
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from memnc.worker import Worker
+
+    class _NC:
+        async def request(self, subject, payload, timeout):
+            reply = {"error": "max_submit_depth 3 reached"}
+            return SimpleNamespace(data=json.dumps(reply).encode())
+
+    class _Bus:
+        nc = _NC()
+
+        async def get_snapshot(self, task_id):
+            return None
+
+    worker = Worker.__new__(Worker)
+    worker.bus = _Bus()
+    worker.settings = SimpleNamespace(max_submit_depth=3, node_name="node-a", mesh_claim=False)
+    out = json.loads(
+        asyncio.run(worker._mesh_submit(SimpleNamespace(task_id="t1"), {"task": "do it"}))
+    )
+    assert out["ok"] is False
+    assert "max_submit_depth" in out["error"]
+    from types import SimpleNamespace
+
+    from memnc.worker import Worker
+

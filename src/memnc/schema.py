@@ -639,17 +639,25 @@ class ConsultAnswer(BaseModel):
         return self
 
 
+# Bounds on submitted input. Submissions arrive from any publisher on the bus,
+# so size and range are enforced by the model, not by the caller.
+MAX_TASK_CHARS = 20_000
+MAX_CONTEXT_CHARS = 50_000
+MAX_REVISIONS_CEILING = 10
+MAX_SUBMIT_DEPTH_CEILING = 16
+
+
 class TaskSubmission(BaseModel):
-    task: str
-    context: str = ""
-    max_revisions: int | None = None
+    task: str = Field(max_length=MAX_TASK_CHARS)
+    context: str = Field(default="", max_length=MAX_CONTEXT_CHARS)
+    max_revisions: int | None = Field(default=None, ge=0, le=MAX_REVISIONS_CEILING)
     # M10 fan-out: the orchestrator decomposes the planner's multi-step plan
     # into independent subtasks on mesh.task.submit and returns immediately.
     fanout: bool = False
     # M11: agents-as-submitters recursion depth. depth 0 = human/meshctl top
     # task; an agent re-submitting from inside a task passes depth+1, and the
     # orchestrator rejects anything at or above Settings.max_submit_depth.
-    depth: int = 0
+    depth: int = Field(default=0, ge=0, le=MAX_SUBMIT_DEPTH_CEILING)
     # M11 ledger-based self-claiming: claimable tasks are NOT dispatched by
     # the orchestrator. They sit in RECEIVED until an agent CAS-claims them
     # (bus.try_claim); the orchestrator only referees the claim.
