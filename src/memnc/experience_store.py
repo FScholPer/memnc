@@ -1,12 +1,12 @@
 """ACE-style automated experience store (roadmap 15.3 item 5).
 
-DESIGN (before code, per repo rule): docs/design-ace-experience.md.
+DESIGN (before code, per repo rule): docs/roadmap.md.
 Evidence: ACE (ICLR 2026) — context as an append-only, itemized bullet
 store with a deterministic merge; the two guarded failure modes are
 brevity bias (over-compression in one step) and context collapse
 (duplicate bullets accumulating).
 
-This module is the programmatic counterpart of docs/experience.md: a
+This module is the programmatic counterpart of docs/roadmap.md: a
 file-backed, NATS-free store of per-topic experience bullets with a
 deterministic merge that enforces both ACE guards. Producers (bench runs
 now, observation deposits later) append bullets; nothing here calls an

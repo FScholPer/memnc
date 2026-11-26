@@ -106,7 +106,7 @@ REPUTATION_KEY = "model_rep.{model}"
 
 def background_key(task_id: str) -> str:
     """workflow_state companion key for a task's persistent Background
-    (docs/design-message-tuple.md)."""
+    (docs/roadmap.md)."""
     return f"background.{task_id}"
 
 
@@ -570,7 +570,7 @@ ROLE_OUTPUT: dict[Role, type[BaseModel]] = {
 }
 
 
-# Structured communication tuple (TalkHier-derived, docs/design-message-tuple.md):
+# Structured communication tuple (TalkHier-derived, docs/roadmap.md):
 # every debate hop carries (message, background, intermediate_output) instead of
 # re-derived prose. The background is persistent per task; the intermediate
 # output lives only inside the current hop's envelope payload.

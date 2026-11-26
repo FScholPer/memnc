@@ -790,7 +790,7 @@ class Orchestrator:
         elif role is Role.CRITIC:
             snapshot.critique = CriticOutput.model_validate(output)
 
-    # -- structured message tuples (docs/design-message-tuple.md) ----------
+    # -- structured message tuples (docs/roadmap.md) ----------
     def _background(self, snapshot: TaskSnapshot) -> Background:
         return Background(
             task=snapshot.task,

@@ -880,7 +880,7 @@ def _mesh_dep_checker(settings: Settings) -> Callable[[str], Awaitable[bool]]:
     cancelled): backlog deps injected as mesh ids express ordering, not a
     success gate — a terminal-failed attempt is followed by backlog
     strong-retries, and blocking on it deadlocks the driver forever (see
-    docs/design-backlog-dep-resolution.md). Unknown ids stay blocked.
+    docs/roadmap.md). Unknown ids stay blocked.
     """
     snapshots: dict[str, bool] | None = None
 
