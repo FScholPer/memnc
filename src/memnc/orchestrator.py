@@ -574,7 +574,10 @@ class Orchestrator:
         try:
             payload = Envelope.model_validate_json(message.data).payload or {}
             patterns = [p for p in self.settings.grant_nodes.split(",") if p.strip()]
-            for agent_id in acl.auto_grant_agents(payload, patterns):
+            node = message.subject.split(".")[2] if message.subject.count(".") >= 3 else ""
+            if not node or await self.bus.revocation_of(node) is not None:
+                return
+            for agent_id in acl.auto_grant_agents(node, payload, patterns):
                 if await self.bus.grant_read(agent_id) is not None:
                     continue
                 await self.bus.issue_grant(
