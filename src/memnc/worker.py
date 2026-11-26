@@ -1033,7 +1033,9 @@ class Worker:
             timeout=10,
         )
         data = json.loads(response.data) or {}
-        return json.dumps({"ok": True, "task_id": data.get("task_id"), "depth": depth})
+        if data.get("error") or not data.get("task_id"):
+            return json.dumps({"ok": False, "error": data.get("error") or "no task_id in reply"})
+        return json.dumps({"ok": True, "task_id": data["task_id"], "depth": depth})
 
     # -- M11: ledger-based self-claiming -------------------------------------
     async def _propose_retirement(self, model: str, rep) -> None:
