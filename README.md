@@ -2,7 +2,6 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-34d399?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-22d3ee?style=flat-square)](pyproject.toml)
-[![Tests](https://github.com/dropicallus/memnc/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dropicallus/memnc/actions/workflows/ci.yml)
 [![No cloud required](https://img.shields.io/badge/cloud-never-fb7185?style=flat-square)](#security-model)
 
 **A multi-agent mesh that runs entirely on your own hardware.**
@@ -49,7 +48,7 @@ TASK_ID=$(.venv/bin/meshctl submit "Create hello.py that prints hello from the m
 
 More capacity is one flag: `docker compose up -d --scale worker-coder=3`.
 Two-machine mesh, worker-driven claimable tasks and grant/revoke semantics are
-covered in [`docs/operations.md`](docs/operations.md).
+covered in [`docs/plan.md`](docs/plan.md).
 
 ## What's live
 
@@ -83,10 +82,6 @@ brownfield status): [`docs/plan.md`](docs/plan.md) §19.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | The specification: architecture, wire protocol, orchestrator, workers, deployment, security |
 | [`docs/roadmap.md`](docs/roadmap.md) | One document: Part I the plan (ten epics E1–E10, tasks with status), Part II the chronological log (§14–§19) |
-| [`docs/architecture.md`](docs/architecture.md) | Component and data-flow view |
-| [`docs/protocol.md`](docs/protocol.md) | NATS subjects and envelope format |
-| [`docs/operations.md`](docs/operations.md) | Running and operating the mesh |
-| [`docs/recovery.md`](docs/recovery.md) | How the codebase was rebuilt from `.pyc` remnants |
 
 New documentation is consolidated into these files, not added as new files.
 
