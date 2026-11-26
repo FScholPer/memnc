@@ -107,6 +107,12 @@ services:
     command:
       - "-c"
       - |
+        # Fail closed before any branch: every start needs NKey or token auth,
+        # including cluster members (their route block adds no client auth).
+        if [ -z "$$NATS_CONF" ] && [ -z "$$NATS_TOKEN" ]; then
+          echo "FATAL: neither NATS_CONF (NKey mode) nor NATS_TOKEN (token mode) is set" >&2
+          exit 1
+        fi
         # Topology template: NATS_CLUSTER_ROUTES (comma-separated list of
         # "nats://host:6222" route URLs, own address included) turns this
         # server into a Raft cluster member. Solo deployments leave it
@@ -130,10 +136,6 @@ services:
         fi
         if [ -n "$$NATS_CONF" ]; then
           exec nats-server -js -sd /data --http_port 8222 --config /cfg/nats.conf
-        fi
-        if [ -z "$$NATS_TOKEN" ]; then
-          echo "FATAL: neither NATS_CONF (NKey mode) nor NATS_TOKEN (token mode) is set" >&2
-          exit 1
         fi
         exec nats-server -js -sd /data --http_port 8222 --auth "$$NATS_TOKEN"
     environment:
