@@ -272,6 +272,10 @@ class Settings(BaseSettings):
     retire_threshold: int = 3
 
     log_level: str = "INFO"
+    # Bench checkers import model-written code. Off by default; a node that
+    # runs bench with untrusted output turns this on to run each checker in a
+    # child process with a minimal environment and a wall-clock limit.
+    bench_isolate: bool = False
 
     # T1: read-only Telegram observer. Empty TELEGRAM_ALLOW = mirror to nobody
     # (the observer refuses to start, so a leaked token alone does nothing).
