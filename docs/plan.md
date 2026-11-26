@@ -106,11 +106,10 @@ full-blown stateful conversation FSM, which we judge too heavy for v1.
   per-harness **adapter** (a small NATS client that speaks the mesh contract on
   one side and the harness's native I/O — stdio MCP client, HTTP/SSE, CLI — on
   the other). No harness is modified. Reflection of Cotal's connectors.
-- **D2 — Capability registry = NATS KV with TTL.** No DHT in v1. Nodes publish
-  `{node, role, skills(MCP tool set), model, load, lat, state}` to a
-  `mesh.registry` KV bucket (TTL ~30 s, refreshed by heartbeat). Any peer/Cotal-
-  style watcher sees who is online and capable. DHT (SwarmHarness) is a later,
-  trustless option.
+- **D2 — Capability registry follows the Synadia Agent Protocol for NATS.** Each agent is a
+  NATS micro-service named `agents` that serves `prompt`, `status` and `hb`; discovery uses
+  `$SRV`. The roster KV (`mesh.registry`, TTL ~30 s, refreshed by heartbeat) stays as the cache
+  that routers read. No DHT in v1; SwarmHarness's DHT is a later, trustless option.
 - **D3 — Keep the orchestrator, make routing utility-scored.** The FSM +
   singleton orchestrator is sound and tested (§6). Extend selection: role →
   candidate nodes (registry) → `max U(v,T)` over load/latency/trust. Multiple
@@ -121,7 +120,8 @@ full-blown stateful conversation FSM, which we judge too heavy for v1.
   inside a payload (`agent_id`, `node`, `decided_by`) are not trusted on their own: the
   orchestrator derives identity from the subject or its own records, and messages are
   signed with the sender's NKey and verified against roster keys (roadmap T11.18). The
-  earlier JWT design is dropped.
+  earlier JWT design is dropped. Workload identity follows SPIFFE: short-lived, attestable
+  identities issued at enrollment (roadmap T11.25). NATS credentials stay NKey-based.
 - **D5 — Presence KV.** The heartbeat (`mesh.node.*.heartbeat`) is written into a TTL KV
   bucket (`roster`); the router and `meshctl` read it. Late joiners discover by
   reading or watching the bucket. The word *pheromone* is reserved for learned route
@@ -130,6 +130,11 @@ full-blown stateful conversation FSM, which we judge too heavy for v1.
   its tools over MCP; a driver/harness *consumes* another agent's MCP/HTTP
   surface through the adapter. Matches HarnessAPI's "typed skill folder as both
   HTTP and MCP" and keeps memnc harness-agnostic.
+- **D7 — Standards first.** Where a standard exists for a concern, memnc adopts it instead of
+  defining its own: presence and discovery (Synadia Agent Protocol for NATS), workload identity
+  (SPIFFE), cross-vendor agent handoff (A2A v1.0, through a gateway at the edge), tools (MCP),
+  transport credentials (NATS NKeys). Mesh-internal subjects stay custom only where no standard
+  covers them.
 
 ### 0.5 Phased next steps (milestones M7–M9, logged in roadmap Part II §14)
 
@@ -613,10 +618,10 @@ Hardening must not cross this line:
    task classes when *its operator* decides so. The orchestrator may
    *prefer* sandboxed nodes for untrusted tasks (auction tie-breaker)
    but may never *require* a sandbox for the mesh to function.
-3. **Joinability stays cheap.** Plain NATS + one seed file per node
-   (`gen_nkeys.py`) is the whole onboarding. No CA, no certificates, no
-   control-plane sign-off workflow. If a hardening step makes joining
-   harder than copying one file, it fails this line.
+3. **Joinability stays cheap.** Enrolling a node is one command: it creates the node's NATS
+   credential (`gen_nkeys.py`) and requests a short-lived workload identity from the mesh's
+   identity authority (D7, roadmap T11.25). No hand-managed certificates and no control-plane
+   sign-off workflow. If a hardening step makes joining harder than one command, it fails this line.
 4. **App-level gates stay where they are.** MESH_GATE, grant KV,
    MESH-empty pull whitelist are *policy* layers an operator configures;
    the transport layer (NKeys) is *identity*. The concept never merges
@@ -702,7 +707,8 @@ Status and live checks for each item are tracked in roadmap E11 (T11.12, T11.14�
 ### 21.5 What we deliberately do NOT do
 
 - No central orchestration-owned sandbox enforcement.
-- No certificate authority / mTLS (NKeys already give per-node identity).
+- No hand-managed certificates. Workload identity comes from a standard identity system (D7, roadmap
+  T11.25); NKeys remain the NATS credential.
 - No automatic revocation heuristics ("misbehaviour detection") — a
   human decides, from evidence, per §20's approvals-stay-human rule.
 - No per-message authorization layer in Python — enforcement stays at
