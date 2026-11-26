@@ -22,7 +22,8 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 | [E7](#e7-model-intelligence) | Model intelligence | T7.1–T7.5 | 1 |
 | [E8](#e8-operator-surfaces) | Operator surfaces | T8.1–T8.8 | 2 |
 | [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.6 | 3 |
-| [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.5 | 1 |
+| [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.7 | 1 |
+| [E11](#e11-security-and-trust) | Security and trust (release review, plan §21) | T11.1–T11.20 | 15 |
 
 **Part II — Log** (same file, below the plan)
 
@@ -155,6 +156,7 @@ Telegram, console, Hermes plugin.
 | T8.6 | Model-suggestion flow on failure | ✅ | §14.11 P2.9 |
 | T8.7 | Console v2: live view + problem surface | ☐ | §14.10 (deferred) |
 | T8.8 | Hermes plugin as second approval surface | ☐ | §14.9 |
+| T8.9 | Telegram write commands need an allow-listed sender (`TELEGRAM_ALLOW_USERS`) | ✅ | PR #42 merged; unit tests in CI; live check: set your user id, confirm a non-listed member is refused |
 
 ## E9 Fleet and model serving
 
@@ -178,6 +180,41 @@ Per-node llauncher, monitors, the model index.
 | T10.3 | Docs cleanup, design notes absorbed | ✅ | §16 |
 | T10.4 | AutoSwarm outlook (heterogeneous harnesses under one roof) | ⏸ | §14.5 |
 | T10.5 | Not-pursuing list | 🗑 | §"Not pursuing" |
+| T10.6 | Release workflow: read-only default, tag-to-version check, publish after build | ✅ | PR #40 merged; actionlint in CI |
+| T10.7 | Docs and tracked content: English, no personal names or dates, existing links | ✅ | PRs #40, #43 merged; decisions in §16 log |
+
+## E11 Security and trust
+
+Release-review findings and the open items of plan §21. Plan §21 holds the
+reasoning; this table is the tracker. Status `🟡` on the #47 rows means: built,
+covered by CI, **not yet run on the live two-node mesh**.
+
+| ID | Task | Status | Evidence / log |
+|---|---|---|---|
+| T11.1 | Node users cannot write `mesh_grants` / `mesh_revocations` or reshape streams (deny list in `gen_nkeys`) | 🟡 | PR #47; live check: a node-user `put` to `mesh_grants` is refused, orchestrator unaffected |
+| T11.2 | Heartbeat grants take the node from the subject; revoked nodes skipped | 🟡 | PR #47; live check: a forged `node` in a heartbeat payload grants nothing |
+| T11.3 | Trust credit on claim only for ids that hold a grant | 🟡 | PR #47; CI tests the claim path with stand-ins |
+| T11.4 | Done-gate decides the outcome before observations and pheromones are deposited | 🟡 | PR #47 |
+| T11.5 | Commands for finished or cancelled tasks are acknowledged, not run | 🟡 | PR #47 |
+| T11.6 | Experience store writes hold an advisory lock per load-modify-save | 🟡 | PR #47; per-host lock, not cross-host |
+| T11.7 | VRAM reservation released when the task is terminal | 🟡 | PR #47 |
+| T11.8 | Model-transport names are one safe path component | ✅ | PR #41 merged; unit test in CI |
+| T11.9 | Approve/reject model requests: exact id or unique prefix of 6+ characters | ✅ | PR #41 merged; unit test in CI |
+| T11.10 | Bounded submission size, depth and revisions; submit failures reported | ✅ | PR #46 merged; unit tests in CI |
+| T11.11 | Harness children get the allow-listed environment (`OPENCODE_ENV_PASS`, `PI_ENV_PASS`) | ✅ | PR #41 merged |
+| T11.12 | Token-mode branch removed from compose (`NATS_CONF:?` only) — plan §21.4 item 1 | ☐ | still open: compose keeps the `NATS_TOKEN` branch; needs all nodes on seeds first |
+| T11.13 | NATS bind address: plan §21.2 says loopback by default, compose publishes 4222 and 6222 on all interfaces | ☐ | contradiction, owner decision: add a `NATS_BIND` setting, or change the plan to name NATS as the exception |
+| T11.14 | Image pins by digest (`nats`, `python`) and `pip-audit` / `trivy` in CI — plan §21.4 item 2 | ☐ | Actions are SHA-pinned (PR #45); images and audit are not |
+| T11.15 | Container hardening profile as an opt-in override — plan §21.4 item 3 | ☐ | base compose stays simple by design |
+| T11.16 | Per-task subject isolation (NATS accounts) — plan §21.4 item 4 | ⏸ | only if untrusted nodes ever join |
+| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI) | ☐ | new component, design agreed in principle, not built |
+| T11.18 | Zero trust: signed messages checked against roster keys; per-node subject scopes; no shared token in the trust model | ☐ | not built; workers still need the wide `$JS.>` and `$KV.*.>` permissions |
+| T11.19 | Snapshot and backlog compare-and-swap with a defined retry rule; command matching against the current attempt; `workflow_state` pruning | ☐ | not built; `put_snapshot` is unconditional at 33 call sites |
+| T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | needs a real two-node run and the owner's force-push |
+
+**Exit criteria:** every 🟡 row above has a live check recorded in Part II; T11.12
+and T11.13 have a decision recorded in plan §21; no open security item lives only
+in the plan.
 
 ## Sequencing
 
@@ -188,6 +225,8 @@ Per-node llauncher, monitors, the model index.
 3. **E6** — T6.1 close-out, then T6.2 only when the ledger holds enough tasks;
    T6.4 decides node placement before any timeline is promised.
 4. **Parallel, cheap:** T9.4/T9.5 (fleet bookkeeping), T8.7, T1.6.
+5. **E11 live checks first:** T11.1–T11.7 need a two-node run before the next
+   security change. T11.17 and T11.18 each start as their own design note.
 
 ---
 
@@ -3122,3 +3161,23 @@ Goal: "who am I" becomes a transport property, not a payload claim.
 Non-goals / standing rules: approvals stay human (no new authority paths);
 `.env` stays gitignored; no default creds shipped in compose (fail-closed, like
 `NATS_TOKEN:?`); every new deny-path gets a test before merge.
+
+## 21. Reconciliation with the plan and merged PRs (2026-11-26)
+
+The plan and the roadmap disagreed on what was open. Changes made:
+
+- **New epic E11 (security and trust)** holds every open security item that lived
+  only in plan §21, plus the PR #47 work that needs a live check. Open counts in the
+  Contents table were recomputed from the rows.
+- **Merged work recorded as Part I rows:** Telegram sender allow-list (T8.9, PR #42),
+  release workflow and tracked-content cleanup (T10.6, T10.7, PRs #40, #43),
+  model-transport names, approval ids, submission bounds, harness environment
+  (T11.8–T11.11, PRs #41, #46).
+- **Contradictions found and recorded, not silently fixed:**
+  - plan §21.2 requires loopback by default, but compose publishes NATS on all
+    interfaces (T11.13, owner decision);
+  - plan §21.4 item 1 (token-mode removal) is still open in compose (T11.12);
+  - plan §10.1 described a NATS config file and compose flags that no longer exist.
+    Replaced with what the entrypoint does.
+- **Not verified:** everything marked 🟡 on PR #47. CI covers the unit level; the
+  two-node checks are listed as T11.20 and need a real run.
