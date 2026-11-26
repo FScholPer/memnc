@@ -343,7 +343,7 @@ Prompts are versioned strings; each result records `prompt_version` for reproduc
 
 ### 7.4 Idempotency caveat
 
-Tool calls are checkpointed by `(command_id, tool, args_hash)` in the snapshot. Finished calls are never re-executed on redelivery. A command killed *mid-execution* may still re-run — accepted risk of at-least-once with full shell; documented in `docs/protocol.md`.
+Tool calls are checkpointed by `(command_id, tool, args_hash)` in the snapshot. Finished calls are never re-executed on redelivery. A command killed *mid-execution* may still re-run — accepted risk of at-least-once with full shell; documented in `docs/plan.md`.
 
 ## 8. MCP tool servers
 
@@ -363,7 +363,7 @@ Tool calls are checkpointed by `(command_id, tool, args_hash)` in the snapshot. 
 - workers share a dedicated Docker network; NATS is the only required egress
 - documented consequence: the model can execute arbitrary code and reach anything the worker container can reach
 
-`docs/protocol.md` documents tool schemas as structured JSON, and a `tests/test_tools.py` suite covers path-escape attempts, timeouts, and output caps.
+Section 8 describes the tool schemas as structured JSON, and a `tests/test_tools.py` suite covers path-escape attempts, timeouts, and output caps.
 
 ## 9. Inference backends
 
@@ -522,33 +522,11 @@ Each milestone is independently demoable; M2 is the checkpoint that proves the m
 - `docker compose up` brings NATS + orchestrator + three workers healthy with an external inference endpoint.
 - `meshctl submit` on a small coding task produces a plan, edited files in the workspace, a critic verdict, and a terminal state visible via `meshctl tail`.
 - Orchestrator restart mid-task resumes without duplicate side effects; worker crash redelivers without re-running completed tools.
-- `pytest` green; `docs/architecture.md` and `docs/protocol.md` match the implementation; `scripts/smoke.sh` runs end-to-end.
+- `pytest` green; the architecture and wire-protocol sections (3 and 5) match the implementation; `scripts/smoke.sh` runs end-to-end.
 
-## 18. Role division: subagent vs. parent (orchestration)
+## 19. Research-informed orchestration priorities (26-paper corpus)
 
-During implementation (M7, ) work is split between a delegated Hermes subagent and the parent assistant; the task board (`todo_list`, categories SUBAGENT / ME / BLOCKED) keeps the running state.
-
-- **Subagent** (delegated via `delegate_task`, local model `edtorre/gemma4-26b-a4b-it-qat-agent`, 25.2B with tools): well-scoped, mechanical subtasks against verified APIs. Example here: writing `tests/test_integration_adapter.py`.
-- **Parent (ME):** everything that builds on user context, verification, credentials or coordinating decisions — writing the adapter/unit tests itself, cross-checking subagent results on disk, the NATS live run (needs the dev token, which is not shared with subagents), the commit.
-- **Blocked:** live NATS test — the test instance on 4223 is not running; dev on 4222 requires dev-token auth (not plaintext, not given to subagents).
-
-Rule: subagent self-reports are never facts — every claimed file/output is verified by the parent itself before a task is marked completed. Details in the `subagent-orchestration` skill.
-
-### What the subagent should take over (assignment per phase, as of )
-
-The same role split applies to the open pieces derived from the references (§0.5 M7-CLR/M8/M9/M10). The subagent does the **mechanical, clearly scoped implementation parts against verified APIs**; the parent keeps credentials, verification, the NATS live run and the commit.
-
-- **M7-CLR (meshctl registry command + test):** → **subagent**. Pure CLI extension following the existing `cmd_tasks` pattern (instantiate Bus internally, `list_capabilities()`, finally `close()`), unit test without NATS via monkeypatch on `memnc.cli.Bus`. No credential, no live NATS needed → ideally delegable. **Parent:** verify the files on disk, run `py_compile` + pytest itself, commit.
-- **M8 trust ledger + attribution + multi-router:** shared. **Subagent:** `mesh.trust` KV methods (credit accrue/decay, attribution entry) + router scorer as a pure function over presence+trust (NATS-free unit tests). **Parent:** the NATS live run (token), routing integration into the `meshctl` roster, commit.
-- **M9 subject identity + ACLs + capability gate:** shared. **Subagent:** defined parts of the JWT/ACL configuration and the gate check logic (allow/deny pure function + unit tests). **Parent:** token handling/NATS wire configuration (credentials), design of the orchestrator grant authorization, live verification, commit.
-- **M10 queryable ledger + fan-out:** shared. **Subagent:** `mesh.task.submit` fan-out method + ledger read helper against verified bus APIs + unit tests. **Parent:** ledger view in the `meshctl` integration, orchestrator-side subtask decomposition as a design decision, live NATS test, commit.
-
-Boundary: the subagent **never** gets the NATS dev token (not plaintext, not given to children); the parent performs all live NATS connection tests as soon as a test instance is available (4223, or 4222 with token).
-
-
-## 19. Research-informed orchestration priorities (26-paper corpus, )
-
-Source: `~/research-papers/analysis_priors_proposal.md`; full synthesis with LoRA/memory priorities in `~/research-papers/synthesis.md` §5.
+Source: the 26-paper research corpus (not part of this repository); its synthesis, section 5, covers the LoRA and memory priorities.
 
 - **P0 — Leader-Worker orchestration (MLPO, 2507):** a leader policy synthesizes/corrects worker outputs and routes subtasks to maximize global reward. Maps onto the orchestrator grant/authorization design (§18) and the T7 trust ledger: trust scores weight the leader's per-worker reward credit.
 - **P0/Mesh+Memory crossover — Role-specific LoRA adapters (MoRSE, 2608_09251):** distinct weight-level adapters for Planner/Coder/Critic roles instead of one shared adapter; subspace-divergence check before merging adapters (`memnc/workers/` + Fisher-Merge pipeline).
@@ -556,7 +534,7 @@ Source: `~/research-papers/analysis_priors_proposal.md`; full synthesis with LoR
 - **P1 — Neutral consensus prompts (04_majority_following):** trust-weighted voting in the ledger (`w_i ∝ β_i`); neutral, shuffled option labels when collecting worker votes; 2–3 debate rounds suffice for capable participants.
 - **P2 — Incentive governance (2605_25815):** complexity-weighted evaluation metrics (logical depth over file counts) to prevent score inflation in self-evolving worker populations (`memnc/evaluation/`).
 
-### 19.2 New insights 2026-11-11/12 (research + competition check)
+### 19.2 New insights (research and competition check)
 
 - **P1 — DEALS (2609.33768):** decentralized routing without LLM calls —
   direct prior art for M8's utility scorer: score candidates from
@@ -575,7 +553,7 @@ Source: `~/research-papers/analysis_priors_proposal.md`; full synthesis with LoR
   train/valid divergence) — design-first track in roadmap P2b, replaces
   RAG for the memory vision.
 
-### 19.1 Build order: research → mesh integration (triage )
+### 19.1 Build order: research → mesh integration (triage)
 
 Triage of the 26-paper corpus against the current roadmap. Ordering rule: the
 experience-graph steps 1–5 (## 20. Mesh security: secure-by-design (AAOS SDV principles)
@@ -715,7 +693,7 @@ marked `untrusted: true`). No tier ever blocks basic mesh operation.
 
 1. **Token removal (post-migration cleanup).** Once all nodes carry
    seeds: drop the token-mode branch from compose (`NATS_TOKEN:?`
-   guard becomes `NATS_CONF:?`), keep `dev-token` only in tests.
+   guard becomes `NATS_CONF:?`), keep the test token only in tests.
    Small, mechanical, last.
 2. **M11 — e2e artifact pinning:** pip-audit + trivy in CI (Makefile
    `ci` target gains `make audit`); pinned `nats:2.10-alpine` digest
@@ -889,7 +867,7 @@ kubectl-style mesh API: one verb surface (`task list/detail/submit/cancel`,
 `node list/detail/drain`, `discuss`, `listen`, `channel *`, `trace follow`,
 `llauncher *`, `grant`) reachable from every frontend — `meshctl`, Telegram,
 web UI, later a model-mediated NL agent. See
-`docs/mesh-api-concept.md` for the full concept.
+section 23 for the full concept.
 
 Key shape:
 
