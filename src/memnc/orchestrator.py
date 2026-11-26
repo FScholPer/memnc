@@ -1005,6 +1005,16 @@ class Orchestrator:
             },
         )
 
+        # 15.4.5: the activity gate decides the outcome before anything is
+        # deposited, so a DONE it refuses is recorded as FAILED everywhere.
+        gate_block = ""
+        if self.settings.done_requires_activity and any(a.type == "finish" for a in result.actions):
+            gate_block = done_block_reason(snapshot) or ""
+        if gate_block:
+            snapshot.state = TaskState.FAILED
+            snapshot.record("task.failed", gate_block)
+            snapshot.error = gate_block
+
         # 14.13 step 1: deposit an observation for every terminal transition
         # into the experience graph. Duck-typed + best effort: a broken
         # observation store must never fail the task lifecycle itself.
@@ -1018,15 +1028,9 @@ class Orchestrator:
             if action.type == "dispatch" and action.role is not None:
                 await self._dispatch(snapshot, action.role)
             elif action.type == "finish":
-                # 15.4.5: opt-in structural gate - refuse DONE without any
-                # executed command or tool call on the snapshot.
-                block = done_block_reason(snapshot)
-                if self.settings.done_requires_activity and block:
-                    snapshot.state = TaskState.FAILED
-                    snapshot.record("task.failed", block)
-                    snapshot.error = block
+                if gate_block:
                     await self.bus.put_snapshot(snapshot)
-                    await self.bus.emit_event(snapshot, "task.failed", block)
+                    await self.bus.emit_event(snapshot, "task.failed", gate_block)
                     continue
                 snapshot.record("task.done")
                 await self.bus.put_snapshot(snapshot)
