@@ -67,3 +67,8 @@ def test_post_rejects_cross_origin():
 def test_post_rejects_rebound_host():
     headers = {"Host": "rebound.example:8765", "Content-Type": "application/json"}
     assert _post(headers) == [403]
+
+
+def test_console_page_has_no_inline_handlers():
+    assert "onclick" not in console._PAGE
+    assert 'data-action="cancel"' in console._PAGE
