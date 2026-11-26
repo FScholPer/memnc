@@ -410,17 +410,15 @@ MODEL_CRITIC=llama3.1:8b
 
 Scale out with `docker compose up --scale worker-coder=3`; queue groups guarantee one delivery per command. Multi-host: run the worker services on each host with a shared external `NATS_URL`; a `docker-compose.node.yml` ships for that.
 
-NatS config (`docker/nats/nats.conf`):
+NATS server (compose `nats` service). The server starts from a shell entrypoint in
+`docker-compose.yml`; it does not read a checked-in config file:
 
-```conf
-port: 4222
-http_port: 8222
-max_payload: 4MB
-jetstream { store_dir: /data, max_mem_store: 256MB, max_file_store: 2GB }
-authorization { token: $NATS_TOKEN }
-```
-
-Note: NATS config can't interpolate env directly — entrypoint script renders it, or use `-js -sd /data --auth $NATS_TOKEN` flags in the compose command. Plan: compose command flags, no templating.
+- **NKey mode** (`NATS_CONF` set): `nats-server -js -sd /data --http_port 8222 --config /cfg/nats.conf`,
+  where `/cfg/nats.conf` is the file `scripts/gen_nkeys.py` writes into `secrets/`.
+- **Token mode** (`NATS_TOKEN` set, no `NATS_CONF`): the same command with `--auth $NATS_TOKEN`.
+  This branch is the pending removal in roadmap T11.12.
+- **Cluster mode** (`NATS_CLUSTER_ROUTES` set): the entrypoint appends a cluster block to a copy of
+  the base config. It refuses to start when neither `NATS_CONF` nor `NATS_TOKEN` is set.
 
 ### 10.2 Worker container
 
@@ -603,6 +601,8 @@ marked `untrusted: true`). No tier ever blocks basic mesh operation.
 
 ### 21.4 Remaining hardening backlog (ranked, each stays small)
 
+Status and live checks for each item are tracked in roadmap E11 (T11.12, T11.14–T11.16).
+
 1. **Token removal (post-migration cleanup).** Once all nodes carry
    seeds: drop the token-mode branch from compose (`NATS_TOKEN:?`
    guard becomes `NATS_CONF:?`), keep the test token only in tests.
@@ -656,6 +656,8 @@ an excuse. The rule set:
    localhost requires an explicit, reviewed config change — same rule
    that already forced `NATS_TOKEN:?` (H3) and the empty pull
    whitelist (secure-by-default).
+   *Known gap:* compose publishes the NATS client and cluster ports on all
+   interfaces. Roadmap T11.13 records the decision that closes this.
 3. **Optional sandboxing is per *deployment*, not per *mood*.** A node
    that declares tier 1 (full terminal) does so in its own config,
    consciously, once. There is no code path where the agent "just
