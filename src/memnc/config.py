@@ -207,7 +207,7 @@ class Settings(BaseSettings):
     # checks, opt-in like done_requires_activity. 0 = check off.
     verify_min_lines: int = 0
     verify_min_files: int = 0
-    # Model management twin (plan 2026-11-16): staleness kills a node in the
+    # Model management twin: staleness kills a node in the
     # allocation matrix; the model_manager announces health on this interval.
     twin_stale_s: int = 30
     health_interval_s: int = 5

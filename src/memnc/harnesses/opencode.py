@@ -1,6 +1,6 @@
 """OpenCode harness: runs `opencode run` headlessly against a workspace.
 
-Proven workflow (2026-11-15, node-c/node-c against local ollama):
+Proven workflow (against local ollama):
 - opencode 1.19.5 + `mannix/qwen3.6-27b-a3b-coder:CD-IQ4_K_M` emits native
   tool_calls via the ollama /v1 template and completes a full create-file +
   run + confirm loop (~3-4 min incl. model load).

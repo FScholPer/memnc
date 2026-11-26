@@ -786,7 +786,7 @@ class TaskSnapshot(BaseModel):
         self.updated_at = now_iso()
 
 
-# --- digital twin + model management (plan 2026-11-16, T1) -------------------
+# --- digital twin + model management (T1) ------------------------------------
 
 
 class GpuCardHealth(BaseModel):
@@ -801,7 +801,7 @@ class GpuHealth(BaseModel):
     """Live GPU numbers as measured (never from a registry JSON).
 
     Headline vram_free_mb/vram_total_mb is the WORST card on the node, not a
-    sum — summing across cards masks a full GPU (Frank, 2026-11-17). The
+    sum — summing across cards masks a full GPU. The
     per-card truth is in `cards`.
     """
 

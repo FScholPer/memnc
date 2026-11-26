@@ -1,6 +1,6 @@
 """Pi harness: runs `pi -p --mode json` headlessly against a workspace.
 
-Proven workflow (2026-11-14, weak->strong loop on the memnc repo):
+Proven workflow (weak->strong loop on the memnc repo):
 - pi edits files directly in the workspace (git worktree recommended); the
   product is the workspace diff, not structured patches.
 - 7b-class models emit native tool_calls (6+ tool executions per run); the
