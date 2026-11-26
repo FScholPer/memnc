@@ -15,15 +15,15 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 |---|---|---|---|
 | [E1](#e1-substrate-and-mesh-core) | Substrate and mesh core | T1.1–T1.6 | 3 |
 | [E2](#e2-harness-layer) | Harness layer | T2.1–T2.6 | 1 |
-| [E3](#e3-backlog-and-scheduling) | Backlog and scheduling | T3.1–T3.10 | 3 |
+| [E3](#e3-backlog-and-scheduling) | Backlog and scheduling | T3.1–T3.10 | 2 |
 | [E4](#e4-task-safety-and-human-in-the-loop) | Task safety and human-in-the-loop (P5) | T4.1–T4.6 | 5 |
-| [E5](#e5-elite-evolution) | ELITE evolution (P6) | T5.1–T5.6 | 6 |
-| [E6](#e6-routing-and-learning) | Routing and learning (P7) | T6.1–T6.6 | 6 |
-| [E7](#e7-model-intelligence) | Model intelligence | T7.1–T7.5 | 1 |
+| [E5](#e5-elite-evolution) | ELITE evolution (P6) | T5.1–T5.6 | 0 |
+| [E6](#e6-routing-and-learning) | Routing and learning (P7) | T6.1–T6.6 | 1 |
+| [E7](#e7-model-intelligence) | Model intelligence | T7.1–T7.5 | 0 |
 | [E8](#e8-operator-surfaces) | Operator surfaces | T8.1–T8.8 | 2 |
-| [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.11 | 8 |
+| [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.11 | 7 |
 | [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.7 | 1 |
-| [E11](#e11-security-and-trust) | Security and trust (release review, plan §21) | T11.1–T11.23 | 18 |
+| [E11](#e11-security-and-trust) | Security and trust, and standards alignment (release review, plan §21) | T11.1–T11.26 | 21 |
 
 **Part II — Log** (same file, below the plan)
 
@@ -36,7 +36,7 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 E5/E6 starts until the #35 acceptance criteria 1–3 pass on the live two-node
 mesh. Deterministic checks run before model judgement everywhere.
 
-**Next up:** T4.1 → T4.2 → T4.3 → T4.4 (see [Sequencing](#sequencing)).
+**Next up (P0):** T3.8 benchmark and the T11.20 live checks. Then E4 (T4.1 → T4.4) and the standards rows T11.24–T11.25. See [Sequencing](#sequencing) and [§22](#22-architect-assessment-and-reprioritization-2026-11-26).
 
 ---
 
@@ -66,7 +66,7 @@ One worker, several harnesses; per-task selection.
 | T2.3 | Per-task harness selection (slice 3) | ✅ | §14.14 |
 | T2.4 | OpenCode harness, also inside the worker container | ✅ | §15.4, §15.4.1 |
 | T2.5 | Discuss harness with tests | ✅ | §16.5 |
-| T2.6 | Foreign-harness tool/approval routing over NATS | ☐ | P5.5 (§19.2) |
+| T2.6 | Foreign-harness tool/approval routing over NATS | ☐ | P5.5 (§19.2) · **P1**: foreign agents join through the standards in T11.24 and T11.26 |
 
 ## E3 Backlog and scheduling
 
@@ -81,9 +81,9 @@ Plan-level queue, claims, routing by evidence.
 | T3.5 | Daemonized backlog driver | ✅ | §14.15.4 |
 | T3.6 | Wake-on-backlog / WOL | ✅ | §14.15.8 |
 | T3.7 | Cross-task dependency resolution | ✅ | §14.15.12 |
-| T3.8 | Swarm-vs-single benchmark | ☐ | §14.15.9 |
+| T3.8 | Swarm-vs-single benchmark | ☐ | §14.15.9 · **P0**: decides whether E5 and E6 go ahead (§22) |
 | T3.9 | Pheromone routing: init, selection, worker honouring, decay | 🟡 | §14.15.10 — consolidation open |
-| T3.10 | Swarm-to-human legibility (discussion first) | ☐ | §14.15.11 |
+| T3.10 | Swarm-to-human legibility (discussion first) | ⏸ | §14.15.11 · deferred, roadmap §22 |
 
 ## E4 Task safety and human-in-the-loop
 
@@ -111,12 +111,12 @@ Issue #36, on the existing planner→coder→critic pools. No new roles.
 
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
-| T5.1 | `meshctl evolve` + evolution ledger (`m_t`) | ☐ | P6.1 (§19.3) |
-| T5.2 | Worktree sandboxing, one tree per hypothesis | ☐ | P6.2 |
-| T5.3 | Deterministic gates `G_exp` / `G_acc` (zero LLM calls) | ☐ | P6.3 |
-| T5.4 | Synthesis prompt: classify children, reimplement `Δ_int` | ☐ | P6.4 |
-| T5.5 | Per-generation observability, `/approve_promote` before hot-reload | ☐ | P6.5 |
-| T5.6 | First real run: 10 generations, width 7, idle window | ☐ | P6.6 |
+| T5.1 | `meshctl evolve` + evolution ledger (`m_t`) | ⏸ | P6.1 (§19.3) · deferred, roadmap §22 |
+| T5.2 | Worktree sandboxing, one tree per hypothesis | ⏸ | P6.2 · deferred, roadmap §22 |
+| T5.3 | Deterministic gates `G_exp` / `G_acc` (zero LLM calls) | ⏸ | P6.3 · deferred, roadmap §22 |
+| T5.4 | Synthesis prompt: classify children, reimplement `Δ_int` | ⏸ | P6.4 · deferred, roadmap §22 |
+| T5.5 | Per-generation observability, `/approve_promote` before hot-reload | ⏸ | P6.5 · deferred, roadmap §22 |
+| T5.6 | First real run: 10 generations, width 7, idle window | ⏸ | P6.6 · deferred, roadmap §22 |
 
 ## E6 Routing and learning
 
@@ -126,11 +126,11 @@ once the ledger holds enough tasks to train on.
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
 | T6.1 | Experience graph: deposit wiring, trace query, synergy aggregation | 🟡 | §14.12, §14.13 Steps 1–3; substrate exists (`observations`, `experience`, `synergy`) |
-| T6.2 | Heterogeneous observation graph + link predictor (RGCN/GraphSAGE) | ☐ | P7.1 (§19.4) |
-| T6.3 | Cold start `W_proj` from frozen LLM hidden states | ☐ | P7.2 |
-| T6.4 | `MODEL_WORLD` role (`Qwen-AgentWorld-35B-A3B`), surprise signal | ☐ | P7.3 — only item allowed to add hardware |
-| T6.5 | Probes: `THEORIZE → PROBE → VERIFY`, `<2 s`, no side effects | ☐ | P7.4 |
-| T6.6 | Role LoRAs: trajectory export, training, Fisher-Merge, pinning | ☐ | P7.5 |
+| T6.2 | Heterogeneous observation graph + link predictor (RGCN/GraphSAGE) | ⏸ | P7.1 (§19.4) · deferred, roadmap §22 |
+| T6.3 | Cold start `W_proj` from frozen LLM hidden states | ⏸ | P7.2 · deferred, roadmap §22 |
+| T6.4 | `MODEL_WORLD` role (`Qwen-AgentWorld-35B-A3B`), surprise signal | ⏸ | P7.3 — only item allowed to add hardware · deferred, roadmap §22 |
+| T6.5 | Probes: `THEORIZE → PROBE → VERIFY`, `<2 s`, no side effects | ⏸ | P7.4 · deferred, roadmap §22 |
+| T6.6 | Role LoRAs: trajectory export, training, Fisher-Merge, pinning | ⏸ | P7.5 · deferred, roadmap §22 |
 
 ## E7 Model intelligence
 
@@ -141,7 +141,7 @@ Prompt- and weight-level learning that is already measured.
 | T7.1 | GEPA prompt evolution (mutation + Pareto crossover, live driver) | ✅ | §15.3 item 4 — frontier covers 3/3 seed failures; multi-rep validation open |
 | T7.2 | Arm D adversarial refinement mesh | 🗑 | §15.3 item 3 — 33/40 @ ~4800 tok, fails the cost gate; mesh stays supervisor-of-one |
 | T7.3 | ACE experience store (append-only bullets, guarded merge) | ✅ | §15.3 item 5 |
-| T7.4 | Parametric memory: LoRA + EWC, trajectory export per role | 🟡 | §19.1, P2b — external training repository |
+| T7.4 | Parametric memory: LoRA + EWC, trajectory export per role | ⏸ | §19.1, P2b — external training repository · deferred, roadmap §22 |
 | T7.5 | Parametric-memory counter-position (MAAI C2 critique) | ⏸ | §P2b counter-position |
 
 ## E8 Operator surfaces
@@ -157,7 +157,7 @@ Telegram, console, Hermes plugin.
 | T8.5 | Quiet event stream, verbose override | ✅ | §14.11 P1.8 |
 | T8.6 | Model-suggestion flow on failure | ✅ | §14.11 P2.9 |
 | T8.7 | Console v2: live view + problem surface | ☐ | §14.10 (deferred) |
-| T8.8 | Hermes plugin as second approval surface | ☐ | §14.9 |
+| T8.8 | Hermes plugin as second approval surface | ☐ | §14.9 · **P2**: first check the Hermes agent that already exists in the Synadia agents project (T11.24) |
 | T8.9 | Telegram write commands need an allow-listed sender (`TELEGRAM_ALLOW_USERS`) | ✅ | PR #42 merged; unit tests in CI; live check: set your user id, confirm a non-listed member is refused |
 
 ## E9 Fleet and model serving
@@ -176,7 +176,7 @@ Per-node llauncher, monitors, the model index.
 | T9.8 | Twin collected by the orchestrator; `mesh.resources.view` request/reply endpoint (MM2) | 🟡 | collection is built (`_on_health`); the endpoint does not exist |
 | T9.9 | Planner allocation as structured output, executed by the orchestrator (MM3) | 🟡 | allocation path and alloc gate exist; planners have no view permission, so the planner cannot read the twin |
 | T9.10 | Serving and control adapters: llauncher, Ollama, docker, llama-server (MM4, `memnc.control`) | 🟡 | adapters and tests exist; not verified on the fleet; drain intents are in the code |
-| T9.11 | Cost model from measured load times (MM5) | ☐ | not built |
+| T9.11 | Cost model from measured load times (MM5) | ⏸ | not built · deferred, roadmap §22 |
 
 ## E10 Distribution and docs
 
@@ -220,6 +220,9 @@ covered by CI, **not yet run on the live two-node mesh**.
 | T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | needs a real two-node run and the owner's force-push |
 | T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the mesh task or wait for its terminal state (review F6) | ☐ | the timeout itself is fixed; the cancel subject needs a decision |
 | T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | ☐ | the base image is still unpinned too (T11.14) |
+| T11.24 | Presence and discovery follow the Synadia Agent Protocol for NATS: an `agents` micro-service with `prompt`, `status` and `hb` endpoints, discoverable through `$SRV`. The roster KV stays as the cache | ☐ | **P1**, standard (plan D2, D5, D7). Replaces bespoke presence code where the standard covers it |
+| T11.25 | Workload identity: short-lived, attestable SPIFFE-compatible identities issued at enrollment. NATS credentials stay NKey-based. Replaces the "no CA" rule (plan §21.1 rule 3, D4, D7) | ☐ | **P1**, standard. Enrollment stays one command |
+| T11.26 | Cross-vendor agent handoff through an A2A v1.0 gateway at the edge. MCP stays the tool surface (plan D6, D7) | ☐ | **P2**, standard; not part of the core protocol |
 | T11.23 | Pheromone slug migration: entries keyed before the `_SLUG_BAD` change are orphaned (review F11) | ☐ | needs an owner decision: re-key, or drop the old bucket on upgrade |
 
 **Exit criteria:** every 🟡 row above has a live check recorded in Part II; T11.12
@@ -227,6 +230,19 @@ and T11.13 have a decision recorded in plan §21; no open security item lives on
 in the plan.
 
 ## Sequencing
+
+**Priorities** (a status change, not a removal; every row stays in its table):
+
+- **P0 — decides the direction:** T3.8 benchmark (single agent vs pipeline on our own tasks);
+  T11.20 live checks of PR #47 on two nodes; T1.4 node-c back on the bus.
+- **P1 — next:** E4 (T4.1–T4.5, safety); standards T11.24 (presence) and T11.25 (workload
+  identity); T11.17 SSH broker; T11.18 signed messages; T2.6 foreign-agent routing through the standards.
+- **P2 — later:** T8.7 console, T8.8 Hermes through the standards, T9.4–T9.10 fleet work,
+  T10.2 distribution, T11.14 digest pins, T11.15 hardening profile, T11.26 A2A gateway.
+- **⏸ deferred (kept, not removed):** E5 (ELITE), E6 except T6.1, T7.4 (LoRA memory),
+  T9.11 (cost model), T3.10 (swarm-to-human legibility). They resume after P0 gives evidence.
+
+The earlier ordering is kept below for reference.
 
 1. **E4** — T4.1, T4.2, T4.3, T4.4 in that order; each ships ledger event +
    Telegram card + console rendering + one kill-surviving test (§19.5).
@@ -3197,3 +3213,35 @@ The plan and the roadmap disagreed on what was open. Changes made:
   yet. T1.2 now says so; T11.18 covers signatures.
 - **Not verified:** everything marked 🟡 on PR #47. CI covers the unit level; the
   two-node checks are listed as T11.20 and need a real run.
+
+## 22. Architect assessment and reprioritization (2026-11-26)
+
+**Assessment.** The direction is right: local-first, NATS as the transport, deterministic
+gates before model judgement, and sovereign nodes. The breadth is the risk. Several concept
+layers (E5, E6, the LoRA memory, the model milestones beyond MM4) rest on evidence the repo does
+not have yet. The multi-agent evidence is mixed. Some studies favour multi-agent systems on
+parallel, read-heavy work; others find single agents cheaper and as accurate on sequential work
+once test-time compute is controlled. memnc's main pipeline is sequential, so T3.8 (single agent
+versus pipeline, on the repo's own tasks) is the decisive test and is now P0.
+
+**Standards adopted** (plan D7):
+
+- Presence and discovery: the Synadia Agent Protocol for NATS (`agents` micro-service, `prompt`,
+  `status`, `hb`, `$SRV`). T11.24.
+- Workload identity: SPIFFE-compatible, short-lived identities at enrollment. Replaces the no-CA
+  rule. T11.25.
+- Cross-vendor agent handoff: A2A v1.0 through a gateway at the edge. T11.26.
+- Tools: MCP (unchanged). Transport credentials: NATS NKeys (unchanged).
+
+**Deferred, not removed:** see the ⏸ tier in Sequencing.
+
+**Sources** (checked by search; the linked pages were not read in full):
+
+- A2A: Linux Foundation press release on the A2A project; a2a-protocol.org announcement of v1.0.
+  Moved to the Agentic AI Foundation on 17 August 2026.
+- Synadia Agent Protocol for NATS: github.com/synadia-ai/synadia-agents.
+- Agent identity: NIST NCCoE concept paper on software and AI agent identity and authorization (2026).
+- Single versus multi-agent: Nature npj-series comparison of orchestrated agents against a single
+  agent, and a Frontiers 2026 comparison of single-agent and multi-agent overhead.
+
+**Not verified:** the individual claims in the sources above, beyond the abstracts shown by search.
