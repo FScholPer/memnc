@@ -21,7 +21,7 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 | [E6](#e6-routing-and-learning) | Routing and learning (P7) | T6.1–T6.6 | 6 |
 | [E7](#e7-model-intelligence) | Model intelligence | T7.1–T7.5 | 1 |
 | [E8](#e8-operator-surfaces) | Operator surfaces | T8.1–T8.8 | 2 |
-| [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.6 | 3 |
+| [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.11 | 8 |
 | [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.7 | 1 |
 | [E11](#e11-security-and-trust) | Security and trust (release review, plan §21) | T11.1–T11.23 | 18 |
 
@@ -49,7 +49,7 @@ Bus, FSM, attribution, node membership.
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
 | T1.1 | JetStream task subjects, snapshots, terminal events | ✅ | M8 clearance, §P0 |
-| T1.2 | Signed attribution and grants (single-writer `mesh.control`) | ✅ | §14.4, §14.14 |
+| T1.2 | Attribution entries and grants (single-writer `mesh.control`). Entries are recorded, not signed; signatures are T11.18 | ✅ | §14.4, §14.14 |
 | T1.3 | M14/M15/M16 live tests on both nodes | ✅ | §P2a |
 | T1.4 | node-c (192.168.8.180) back on the bus and on mesh HEAD | 🟡 | §15.4.2; mesh task `1a212915d13e…` |
 | T1.5 | Durable tasks instead of one-shot (retry, error-aware) | 🟡 | §15.4.3 — slice 1 shipped |
@@ -104,6 +104,8 @@ repeated side effects; no destructive shell command without a human approval
 event in the ledger.
 
 ## E5 ELITE evolution
+
+*Proposal (issue #36), not specification. The plan does not describe it.*
 
 Issue #36, on the existing planner→coder→critic pools. No new roles.
 
@@ -170,6 +172,11 @@ Per-node llauncher, monitors, the model index.
 | T9.4 | Model/server index (host file, not in the repo) | 🟡 | created; node-c entry open (mesh task `1a212916ac96…`) |
 | T9.5 | node-c: update to HEAD + Inkling-2-Mini iGPU evaluation | 🟡 | mesh tasks `1a212915d13e…`, `1a2129169b3b…` |
 | T9.6 | LAN model sharing and demand planning | ☐ | §14.7 |
+| T9.7 | Model-management twin: health announce and capability matrix (MM1) | 🟡 | `mesh.node.health` is published by workers; the full matrix fields are partial (docs/model-management.md) |
+| T9.8 | Twin collected by the orchestrator; `mesh.resources.view` request/reply endpoint (MM2) | 🟡 | collection is built (`_on_health`); the endpoint does not exist |
+| T9.9 | Planner allocation as structured output, executed by the orchestrator (MM3) | 🟡 | allocation path and alloc gate exist; planners have no view permission, so the planner cannot read the twin |
+| T9.10 | Serving and control adapters: llauncher, Ollama, docker, llama-server (MM4, `memnc.control`) | 🟡 | adapters and tests exist; not verified on the fleet; drain intents are in the code |
+| T9.11 | Cost model from measured load times (MM5) | ☐ | not built |
 
 ## E10 Distribution and docs
 
@@ -3185,5 +3192,8 @@ The plan and the roadmap disagreed on what was open. Changes made:
 - **Removed `docs/code-review-findings.md`.** It was a snapshot of the review. Its
   open items are now rows: F4 in T11.17, F6 in T11.21, F7 in T11.13, F10 in T11.22,
   F11 in T11.23. The rest are fixed (PRs #39, #41, #43, #46, #47).
+- **Terminology corrected:** "signed attribution" in the 2026-11 entries means recorded
+  attribution (task, self-declared origin, claimer). No message is cryptographically signed
+  yet. T1.2 now says so; T11.18 covers signatures.
 - **Not verified:** everything marked 🟡 on PR #47. CI covers the unit level; the
   two-node checks are listed as T11.20 and need a real run.
