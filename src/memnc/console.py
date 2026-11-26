@@ -328,11 +328,32 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         resp = await api_request(bus, "task.detail", task_id=task_id)
         return resp["data"]
 
+    def _same_origin(self) -> bool:
+        """Refuse cross-site and DNS-rebound requests (CSRF, rebinding).
+
+        A browser form cannot send application/json, and a cross-site fetch
+        that does is blocked by CORS (this server answers no preflight). The
+        Host and Origin checks close the remaining gaps.
+        """
+        bound = self.server.server_address[0]
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
+        if host not in {"127.0.0.1", "localhost", bound}:
+            return False
+        origin = self.headers.get("Origin")
+        return origin is None or urlparse(origin).hostname == host
+
     def do_POST(self) -> None:
         """T4: forward a human control command through the API write path."""
         path = urlparse(self.path).path
         if path != "/api/control":
             self._send(404, b"not found", "text/plain")
+            return
+        if not self._same_origin():
+            self._send(403, b'{"error": "cross-origin request refused"}', "application/json")
+            return
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            self._send(415, b'{"error": "Content-Type must be application/json"}', "application/json")
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
