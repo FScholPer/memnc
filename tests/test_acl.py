@@ -108,11 +108,11 @@ class TestAutoGrantBootstrap:
 
     def test_pattern_list_with_spaces(self):
         p = {"node": "node-b", "role": "critic"}
-        assert acl.auto_grant_agents(p, ["node-a-*", " node-b-* "]) == ["node-b-critic"]
+        assert acl.auto_grant_agents("node-b", p, ["node-a-*", " node-b-* "]) == ["node-b-critic"]
 
     def test_exact_pattern(self):
         p = {"node": "node-b", "role": "coder"}
-        assert acl.auto_grant_agents(p, ["node-b-coder"]) == ["node-b-coder"]
+        assert acl.auto_grant_agents("node-b", p, ["node-b-coder"]) == ["node-b-coder"]
 
 
 class TestPinnedInbox:
