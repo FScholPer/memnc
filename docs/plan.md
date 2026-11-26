@@ -106,10 +106,12 @@ full-blown stateful conversation FSM, which we judge too heavy for v1.
   per-harness **adapter** (a small NATS client that speaks the mesh contract on
   one side and the harness's native I/O — stdio MCP client, HTTP/SSE, CLI — on
   the other). No harness is modified. Reflection of Cotal's connectors.
-- **D2 — Capability registry follows the Synadia Agent Protocol for NATS.** Each agent is a
-  NATS micro-service named `agents` that serves `prompt`, `status` and `hb`; discovery uses
-  `$SRV`. The roster KV (`mesh.registry`, TTL ~30 s, refreshed by heartbeat) stays as the cache
-  that routers read. No DHT in v1; SwarmHarness's DHT is a later, trustless option.
+- **D2 — Capability registry follows the NATS micro-service API.** Each agent registers as a NATS
+  micro-service and answers its service endpoints; discovery uses `$SRV`. The roster KV
+  (`mesh.registry`, TTL ~30 s, refreshed by heartbeat) stays as the cache that routers read. The
+  Synadia Agent Protocol for NATS (a vendor-maintained draft, v0.3.0) is an optional interop profile
+  built on the same micro-service API, not a dependency. No DHT in v1; SwarmHarness's DHT is a later,
+  trustless option.
 - **D3 — Keep the orchestrator, make routing utility-scored.** The FSM +
   singleton orchestrator is sound and tested (§6). Extend selection: role →
   candidate nodes (registry) → `max U(v,T)` over load/latency/trust. Multiple
@@ -130,15 +132,16 @@ full-blown stateful conversation FSM, which we judge too heavy for v1.
   its tools over MCP; a driver/harness *consumes* another agent's MCP/HTTP
   surface through the adapter. Matches HarnessAPI's "typed skill folder as both
   HTTP and MCP" and keeps memnc harness-agnostic.
-- **D7 — Standards first.** Where a standard exists for a concern, memnc adopts it instead of
-  defining its own: presence and discovery (Synadia Agent Protocol for NATS), workload identity
-  (SPIFFE), cross-vendor agent handoff (A2A v1.0, through a gateway at the edge), tools (MCP),
-  transport credentials (NATS NKeys). Mesh-internal subjects stay custom only where no standard
-  covers them.
-
-### 0.5 Phased next steps (milestones M7–M9, logged in roadmap Part II §14)
-
-- **M7 Heterogeneous adapter + capability registry.** `memnc.agent` adapter
+- **D7 — Standards first.** Where a governed standard exists for a concern, memnc adopts it.
+  Standards are chosen by governance and by vendor backing: a standard hosted by a neutral foundation
+  and backed by several large vendors beats a single-vendor draft. Current choices:
+  messaging and discovery (NATS, CNCF graduated; NVIDIA's AI-factory event bus runs on it, and its
+  micro-service API); workload identity (SPIFFE, CNCF graduated); tools (MCP, hosted by the
+  Agentic AI Foundation); cross-vendor agent handoff (A2A v1.0, hosted by the Agentic AI Foundation,
+  through a gateway at the edge); observability (OpenTelemetry GenAI semantic conventions, adopted by
+  Google Cloud, AWS, Azure and Datadog); inference (the OpenAI-compatible API, already the inference
+  contract). Vendor specs and single-vendor drafts are optional interop profiles, not dependencies.
+  Mesh-internal subjects stay custom only where no standard covers them.7 Heterogeneous adapter + capability registry.** `memnc.agent` adapter
   that lets an external harness (start with **Hermes**/**pi** via a Cotal-style
   connector contract, then Claude Code) join the mesh: register capabilities in
   `mesh.registry` KV, receive anycast work, reply. Registry visible in

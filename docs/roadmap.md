@@ -23,7 +23,7 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 | [E8](#e8-operator-surfaces) | Operator surfaces | T8.1–T8.8 | 2 |
 | [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.11 | 7 |
 | [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.7 | 1 |
-| [E11](#e11-security-and-trust) | Security and trust, and standards alignment (release review, plan §21) | T11.1–T11.26 | 21 |
+| [E11](#e11-security-and-trust) | Security and trust, and standards alignment (release review, plan §21) | T11.1–T11.27 | 22 |
 
 **Part II — Log** (same file, below the plan)
 
@@ -220,9 +220,10 @@ covered by CI, **not yet run on the live two-node mesh**.
 | T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | needs a real two-node run and the owner's force-push |
 | T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the mesh task or wait for its terminal state (review F6) | ☐ | the timeout itself is fixed; the cancel subject needs a decision |
 | T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | ☐ | the base image is still unpinned too (T11.14) |
-| T11.24 | Presence and discovery follow the Synadia Agent Protocol for NATS: an `agents` micro-service with `prompt`, `status` and `hb` endpoints, discoverable through `$SRV`. The roster KV stays as the cache | ☐ | **P1**, standard (plan D2, D5, D7). Replaces bespoke presence code where the standard covers it |
+| T11.24 | Presence and discovery use the NATS micro-service API (`$SRV`, service endpoints). NATS is CNCF graduated and runs NVIDIA's AI-factory event bus (DSX Exchange). The Synadia Agent Protocol draft is an optional interop profile, not a dependency. The roster KV stays as the cache | ☐ | **P1**, standard (NATS; plan D2, D7) |
 | T11.25 | Workload identity: short-lived, attestable SPIFFE-compatible identities issued at enrollment. NATS credentials stay NKey-based. Replaces the "no CA" rule (plan §21.1 rule 3, D4, D7) | ☐ | **P1**, standard. Enrollment stays one command |
-| T11.26 | Cross-vendor agent handoff through an A2A v1.0 gateway at the edge. MCP stays the tool surface (plan D6, D7) | ☐ | **P2**, standard; not part of the core protocol |
+| T11.26 | Cross-vendor agent handoff through an A2A v1.0 gateway at the edge. A2A is hosted by the Agentic AI Foundation, which AWS, Google, Microsoft, OpenAI and Anthropic belong to. MCP stays the tool surface (plan D6, D7) | ☐ | **P1**, standard; after the P0 live checks |
+| T11.27 | Observability follows the OpenTelemetry GenAI semantic conventions (agent spans, token and cost metrics). Adopted by Google Cloud, AWS, Azure and Datadog. Telemetry is logs and monitoring tools today | ☐ | **P1**, standard (CNCF; plan D7) |
 | T11.23 | Pheromone slug migration: entries keyed before the `_SLUG_BAD` change are orphaned (review F11) | ☐ | needs an owner decision: re-key, or drop the old bucket on upgrade |
 
 **Exit criteria:** every 🟡 row above has a live check recorded in Part II; T11.12
@@ -236,9 +237,9 @@ in the plan.
 - **P0 — decides the direction:** T3.8 benchmark (single agent vs pipeline on our own tasks);
   T11.20 live checks of PR #47 on two nodes; T1.4 node-c back on the bus.
 - **P1 — next:** E4 (T4.1–T4.5, safety); standards T11.24 (presence) and T11.25 (workload
-  identity); T11.17 SSH broker; T11.18 signed messages; T2.6 foreign-agent routing through the standards.
+  identity); T11.17 SSH broker; T11.18 signed messages; T2.6 foreign-agent routing through the standards; T11.26 A2A gateway and T11.27 OpenTelemetry (both raised from P2).
 - **P2 — later:** T8.7 console, T8.8 Hermes through the standards, T9.4–T9.10 fleet work,
-  T10.2 distribution, T11.14 digest pins, T11.15 hardening profile, T11.26 A2A gateway.
+  T10.2 distribution, T11.14 digest pins, T11.15 hardening profile.
 - **⏸ deferred (kept, not removed):** E5 (ELITE), E6 except T6.1, T7.4 (LoRA memory),
   T9.11 (cost model), T3.10 (swarm-to-human legibility). They resume after P0 gives evidence.
 
@@ -3222,26 +3223,43 @@ layers (E5, E6, the LoRA memory, the model milestones beyond MM4) rest on eviden
 not have yet. The multi-agent evidence is mixed. Some studies favour multi-agent systems on
 parallel, read-heavy work; others find single agents cheaper and as accurate on sequential work
 once test-time compute is controlled. memnc's main pipeline is sequential, so T3.8 (single agent
-versus pipeline, on the repo's own tasks) is the decisive test and is now P0.
+versus pipeline, on the repo's own tasks) is the decisive test and is P0.
 
-**Standards adopted** (plan D7):
+**Standards** (plan D7). Chosen by governance and vendor backing. A foundation-hosted standard
+backed by several large vendors beats a single-vendor draft.
 
-- Presence and discovery: the Synadia Agent Protocol for NATS (`agents` micro-service, `prompt`,
-  `status`, `hb`, `$SRV`). T11.24.
-- Workload identity: SPIFFE-compatible, short-lived identities at enrollment. Replaces the no-CA
-  rule. T11.25.
-- Cross-vendor agent handoff: A2A v1.0 through a gateway at the edge. T11.26.
-- Tools: MCP (unchanged). Transport credentials: NATS NKeys (unchanged).
+- Messaging and discovery: NATS (CNCF graduated, 2 November 2026). NVIDIA's DSX Exchange and NVCF run
+  on NATS JetStream. Presence uses the NATS micro-service API (`$SRV`). T11.24.
+- Tools: MCP, hosted by the Agentic AI Foundation (AAIF). Platinum members include AWS, Anthropic,
+  Block, Bloomberg, Cloudflare, Google, Microsoft and OpenAI.
+- Cross-vendor agent handoff: A2A v1.0, hosted by the AAIF (Google transferred it). T11.26, P1.
+- Observability: OpenTelemetry GenAI semantic conventions, adopted by Google Cloud, AWS, Azure and
+  Datadog. T11.27, P1.
+- Workload identity: SPIFFE (CNCF graduated), short-lived SVIDs issued at enrollment. T11.25.
+- Inference: the OpenAI-compatible API, already the inference contract.
+- Repository conventions: AGENTS.md, which the AAIF also hosts (OpenAI donated it). Already in use.
+
+**Not a standard:** the Synadia Agent Protocol for NATS. It is a vendor-maintained draft (v0.3.0,
+status "Draft") and none of the foundations above host it. It is an optional interop profile only.
 
 **Deferred, not removed:** see the ⏸ tier in Sequencing.
 
+**Correction (same day):** an earlier version of this entry, and plan D2 and D7, called the Synadia
+Agent Protocol a standard. It is a vendor-maintained draft. The entry and the plan now use the NATS
+micro-service API instead.
+
 **Sources** (checked by search; the linked pages were not read in full):
 
-- A2A: Linux Foundation press release on the A2A project; a2a-protocol.org announcement of v1.0.
-  Moved to the Agentic AI Foundation on 17 August 2026.
-- Synadia Agent Protocol for NATS: github.com/synadia-ai/synadia-agents.
-- Agent identity: NIST NCCoE concept paper on software and AI agent identity and authorization (2026).
-- Single versus multi-agent: Nature npj-series comparison of orchestrated agents against a single
-  agent, and a Frontiers 2026 comparison of single-agent and multi-agent overhead.
+- AAIF membership and board: linuxfoundation.org press release on the AAIF; openai.com/index/agentic-ai-foundation;
+  aaif.io/about.
+- A2A moving to the AAIF: linuxfoundation.org and techzine.eu reports on the transfer.
+- NATS: cncf.io/projects/nats (graduated, November 2026).
+- NVIDIA on NATS: docs.nvidia.com DSX Exchange architecture; synadia.com "NVIDIA Built Its AI Factory
+  Event Bus on NATS" (a Synadia publication, so treat it as the vendor's own account).
+- OpenTelemetry GenAI: opentelemetry.io blog (2026, "Inside the LLM Call"); Datadog documentation.
+- CNCF "Cloud native agentic standards" (23 March 2026): names MCP, A2A, SPIFFE/SPIRE, OpenTelemetry;
+  it does not name the Synadia protocol.
+- Synadia Agent Protocol for NATS: github.com/synadia-ai/synadia-agents; spec repository status "Draft".
 
 **Not verified:** the individual claims in the sources above, beyond the abstracts shown by search.
+Membership lists are as published on the foundation pages at the time of the search.
