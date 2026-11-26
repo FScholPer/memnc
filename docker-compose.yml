@@ -235,6 +235,9 @@ services:
       NATS_NKEYS_SEED: /secrets/${NODE_NAME:-node-a}-telegram.nk
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW: ${TELEGRAM_ALLOW:-}
+      # Telegram user ids allowed to write (/submit, /cancel, /approve, buttons).
+      # Empty = read-only bot.
+      TELEGRAM_ALLOW_USERS: ${TELEGRAM_ALLOW_USERS:-}
       TELEGRAM_POLL_S: ${TELEGRAM_POLL_S:-25}
     volumes:
       # Read-only mirror: no workspace/data access, but the NKey seed
