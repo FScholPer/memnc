@@ -111,6 +111,23 @@ def allowed_chats(allow: str) -> set[str]:
 
 MIN_TASK_PREFIX = 6
 
+# Verbs that change mesh state. Only senders on TELEGRAM_ALLOW_USERS may use
+# them; any allowed chat may still read.
+WRITE_VERBS = frozenset({"submit", "cancel", "retry", "approve", "reject", "gate", "stop"})
+NOT_AUTHORIZED = "not authorized: write commands need an allow-listed user"
+
+
+def is_write_text(text: str, armed: bool) -> bool:
+    """True when a chat message would change mesh state.
+
+    ``armed`` is True while a guided /submit waits for its task text, so the
+    next plain message becomes a write.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return armed
+    return stripped.split(maxsplit=1)[0].lstrip("/").lower() in WRITE_VERBS
+
 # Quieter digest: progress states that never need operator action. Their
 # transitions are suppressed (TELEGRAM_QUIET_PROGRESS, default on); terminal
 # states and WAIT_INPUT still broadcast.
@@ -473,6 +490,7 @@ class TelegramObserver:
         self.bot = bot
         self.bus = Bus(settings)
         self.chats = allowed_chats(settings.telegram_allow)
+        self.users = allowed_chats(settings.telegram_allow_users)
         self._seen_tasks: set[str] = set()
         self._last_state: dict[str, str] = {}
         self._announced: set[tuple[str, str, str]] = set()
@@ -943,6 +961,12 @@ class TelegramObserver:
                     log.info("ignored message from unauthorized chat %s", chat or "?")
                     continue
                 text = message.get("text", "")
+                sender = str((message.get("from") or {}).get("id", ""))
+                armed = chat in getattr(self, "_pending_submit", set())
+                if is_write_text(text, armed) and not self._may_write(sender):
+                    log.info("denied write from user %s in chat %s", sender or "?", chat)
+                    await self.bot.send_message(chat, NOT_AUTHORIZED)
+                    continue
                 try:
                     await self.handle_command(chat, text)
                 except Exception as exc:  # noqa: BLE001
@@ -961,6 +985,14 @@ class TelegramObserver:
             except Exception:  # noqa: BLE001 - cosmetic
                 pass
             return
+        sender = str((cq.get("from") or {}).get("id", ""))
+        if not self._may_write(sender):
+            log.info("denied button press from user %s in chat %s", sender or "?", chat)
+            try:
+                await self.bot.answer_callback(cq.get("id", ""), NOT_AUTHORIZED)
+            except Exception:  # noqa: BLE001 - cosmetic
+                pass
+            return
         try:
             await self.bot.answer_callback(cq.get("id", ""))
             await self.handle_callback(
@@ -970,9 +1002,14 @@ class TelegramObserver:
             log.warning("callback failed: %s", _redact(str(exc), self.bot.token))
             await self.bot.send_message(chat, "error handling button")
 
+    def _may_write(self, sender: str) -> bool:
+        return bool(sender) and sender in getattr(self, "users", set())
+
     async def run(self) -> None:
         if not self.chats:
             raise SystemExit("TELEGRAM_ALLOW is empty - no chats to mirror to")
+        if not self.users:
+            log.warning("TELEGRAM_ALLOW_USERS is empty - all write commands are disabled")
         try:
             await self.bot.set_my_commands(botfather_commands())
         except Exception as exc:  # noqa: BLE001 - registration is best-effort
@@ -1048,6 +1085,9 @@ class BotAPI:
 async def amain() -> int:
     settings = Settings()
     logging.basicConfig(level=settings.log_level)
+    # httpx logs every request URL at INFO, and the Bot API URL carries the token.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     if not settings.telegram_bot_token:
         raise SystemExit("TELEGRAM_BOT_TOKEN not set")
     bot = BotAPI(settings.telegram_bot_token, settings.telegram_poll_s)

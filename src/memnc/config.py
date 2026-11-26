@@ -277,6 +277,7 @@ class Settings(BaseSettings):
     # (the observer refuses to start, so a leaked token alone does nothing).
     telegram_bot_token: str | None = None
     telegram_allow: str = ""
+    telegram_allow_users: str = ""
     telegram_poll_s: int = 25
     telegram_verbose: bool = False
     # Quieter digest: suppress routine progress-state transitions (RECEIVED/
