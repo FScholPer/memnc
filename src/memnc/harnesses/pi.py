@@ -19,6 +19,7 @@ import shutil
 import signal
 from pathlib import Path
 
+from ..mcp.tools_shell import harness_env
 from . import HarnessCaps, HarnessResult, register
 from .workspace import workspace_diff
 
@@ -124,6 +125,7 @@ class PiHarness:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=str(workspace),
+                env=harness_env("PI_ENV_PASS"),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,

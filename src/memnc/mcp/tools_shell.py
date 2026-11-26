@@ -17,13 +17,20 @@ log = logging.getLogger(__name__)
 _ENV_KEYS = ("PATH", "HOME", "LANG", "TERM", "TMPDIR")
 
 
-def minimal_env() -> dict[str, str]:
+def minimal_env(extra: tuple[str, ...] | list[str] = ()) -> dict[str, str]:
     """Allow-listed environment for model-driven child processes.
 
     Model-authored commands and scripts must not inherit secrets such as
-    NATS_TOKEN or INFERENCE_API_KEY from the worker's environment.
+    NATS_TOKEN or INFERENCE_API_KEY from the worker's environment. ``extra``
+    names variables an operator explicitly chose to pass through.
     """
-    return {k: os.environ[k] for k in _ENV_KEYS if k in os.environ}
+    return {k: os.environ[k] for k in (*_ENV_KEYS, *extra) if k in os.environ}
+
+
+def harness_env(pass_var: str) -> dict[str, str]:
+    """minimal_env plus the comma-separated names in the ``pass_var`` env var."""
+    extra = [k.strip() for k in os.environ.get(pass_var, "").split(",") if k.strip()]
+    return minimal_env(extra)
 
 
 async def run_shell(
