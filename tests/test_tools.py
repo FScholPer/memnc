@@ -97,3 +97,25 @@ def test_minimal_env_drops_secrets(monkeypatch):
     assert "NATS_TOKEN" not in env
     assert "INFERENCE_API_KEY" not in env
     assert "PATH" in env
+
+
+def test_run_status_refuses_paths_outside_workspace(tmp_path):
+    from memnc.mcp.tools_monitor import run_status
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    outside = tmp_path / "outside.log"
+    outside.write_text("TOKEN=abc\n")
+    (ws / "escape.log").symlink_to(outside)
+    result = run_status("memnc-no-such-process-xyz", log=str(outside), root=ws)
+    assert "rejected" in result["log_tail"]
+    result = run_status("memnc-no-such-process-xyz", log="escape.log", root=ws)
+    assert "rejected" in result["log_tail"]
+
+
+def test_run_status_reads_log_inside_workspace(tmp_path):
+    from memnc.mcp.tools_monitor import run_status
+
+    (tmp_path / "run.log").write_text("a\nb\n")
+    result = run_status("memnc-no-such-process-xyz", log="run.log", root=tmp_path)
+    assert result["log_tail"] == ["a", "b"]
