@@ -23,7 +23,7 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 | [E8](#e8-operator-surfaces) | Operator surfaces | T8.1–T8.8 | 2 |
 | [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.6 | 3 |
 | [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.7 | 1 |
-| [E11](#e11-security-and-trust) | Security and trust (release review, plan §21) | T11.1–T11.20 | 15 |
+| [E11](#e11-security-and-trust) | Security and trust (release review, plan §21) | T11.1–T11.23 | 18 |
 
 **Part II — Log** (same file, below the plan)
 
@@ -207,10 +207,13 @@ covered by CI, **not yet run on the live two-node mesh**.
 | T11.14 | Image pins by digest (`nats`, `python`) and `pip-audit` / `trivy` in CI — plan §21.4 item 2 | ☐ | Actions are SHA-pinned (PR #45); images and audit are not |
 | T11.15 | Container hardening profile as an opt-in override — plan §21.4 item 3 | ☐ | base compose stays simple by design |
 | T11.16 | Per-task subject isolation (NATS accounts) — plan §21.4 item 4 | ⏸ | only if untrusted nodes ever join |
-| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI) | ☐ | new component, design agreed in principle, not built |
+| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI). Also drops the `~/.ssh` and opencode-config mounts from worker containers (review F4) | ☐ | new component, design agreed in principle, not built; mounts still present in compose |
 | T11.18 | Zero trust: signed messages checked against roster keys; per-node subject scopes; no shared token in the trust model | ☐ | not built; workers still need the wide `$JS.>` and `$KV.*.>` permissions |
 | T11.19 | Snapshot and backlog compare-and-swap with a defined retry rule; command matching against the current attempt; `workflow_state` pruning | ☐ | not built; `put_snapshot` is unconditional at 33 call sites |
 | T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | needs a real two-node run and the owner's force-push |
+| T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the mesh task or wait for its terminal state (review F6) | ☐ | the timeout itself is fixed; the cancel subject needs a decision |
+| T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | ☐ | the base image is still unpinned too (T11.14) |
+| T11.23 | Pheromone slug migration: entries keyed before the `_SLUG_BAD` change are orphaned (review F11) | ☐ | needs an owner decision: re-key, or drop the old bucket on upgrade |
 
 **Exit criteria:** every 🟡 row above has a live check recorded in Part II; T11.12
 and T11.13 have a decision recorded in plan §21; no open security item lives only
@@ -3179,5 +3182,8 @@ The plan and the roadmap disagreed on what was open. Changes made:
   - plan §21.4 item 1 (token-mode removal) is still open in compose (T11.12);
   - plan §10.1 described a NATS config file and compose flags that no longer exist.
     Replaced with what the entrypoint does.
+- **Removed `docs/code-review-findings.md`.** It was a snapshot of the review. Its
+  open items are now rows: F4 in T11.17, F6 in T11.21, F7 in T11.13, F10 in T11.22,
+  F11 in T11.23. The rest are fixed (PRs #39, #41, #43, #46, #47).
 - **Not verified:** everything marked 🟡 on PR #47. CI covers the unit level; the
   two-node checks are listed as T11.20 and need a real run.
