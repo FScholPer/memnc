@@ -16,3 +16,4 @@ data/
 discussions/
 
 scripts/leakscan_rules.local.py
+.hermes/

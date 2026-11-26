@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     # M14: claimed tasks run their pipeline worker-driven — the finishing
     # worker advances the snapshot itself; the orchestrator is a spectator.
     self_pipeline: bool = True
-    # Structured message tuples (docs/design-message-tuple.md): when on, the
+    # Structured message tuples (docs/roadmap.md): when on, the
     # orchestrator attaches a MessageTuple to every dispatch payload and the
     # worker renders the prompt as MESSAGE/BACKGROUND/INTERMEDIATE OUTPUT
     # sections instead of re-derived prose. Off = byte-identical arm C.
@@ -203,7 +203,7 @@ class Settings(BaseSettings):
     # advertised model from the roster instead of re-picking the broken one.
     # Human retry intent (model_override) always wins.
     model_rotate_on_fail: bool = True
-    # Ship-gate V2 (docs/design-ship-gate.md): mechanical deliverable
+    # Ship-gate V2 (docs/roadmap.md): mechanical deliverable
     # checks, opt-in like done_requires_activity. 0 = check off.
     verify_min_lines: int = 0
     verify_min_files: int = 0

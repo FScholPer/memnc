@@ -798,7 +798,7 @@ class Bus:
         assert self.kv is not None
         await self.kv.put(f"task.{snapshot.task_id}", snapshot.model_dump_json().encode())
 
-    # -- persistent background (docs/design-message-tuple.md) ---------------
+    # -- persistent background (docs/roadmap.md) ---------------
     async def save_background(self, task_id: str, background: Background) -> None:
         """Persist the task's shared Background as a workflow_state companion
         key. Snapshots stay backward-compatible; the background is the durable

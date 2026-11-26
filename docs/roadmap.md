@@ -1,15 +1,15 @@
 # memnc Roadmap
 
-One document, two parts. **Teil I** is the plan: chapters are epics, each epic
-owns tasks. **Teil II** is the chronological log (evidence, measurements,
+One document, two parts. **Part I** is the plan: chapters are epics, each epic
+owns tasks. **Part II** is the chronological log (evidence, measurements,
 design notes) that the `Log` column points into (`§19.2`, `§14.15.10`, …) —
 same file, so nothing lives off to the side.
 
 Status: `✅` built and verified · `🟡` partial / running · `☐` open · `⏸` deferred · `🗑` dropped
 
-## Inhalt
+## Contents
 
-**Teil I — Plan**
+**Part I — Plan**
 
 | Epic | Title | Tasks | Open |
 |---|---|---|---|
@@ -24,7 +24,7 @@ Status: `✅` built and verified · `🟡` partial / running · `☐` open · `�
 | [E9](#e9-fleet-and-model-serving) | Fleet and model serving | T9.1–T9.6 | 3 |
 | [E10](#e10-distribution-and-docs) | Distribution and docs | T10.1–T10.5 | 1 |
 
-**Teil II — Log** (same file, below the plan)
+**Part II — Log** (same file, below the plan)
 
 - [Built](#built) · [14. Milestones](#14-milestones) · [Implementation Roadmap (Steps 1–3)](#implementation-roadmap-experience-graph-steps-13)
 - [Roadmap — prioritized (2026-11-13)](#roadmap--prioritized-2026-11-13) · [15. Research evidence](#15-research-evidence-integration-2026-11-15--intake-closed)
@@ -39,7 +39,7 @@ mesh. Deterministic checks run before model judgement everywhere.
 
 ---
 
-## Teil I — Plan (Epics E1–E10)
+## Part I — Plan (Epics E1–E10)
 
 ## E1 Substrate and mesh core
 
@@ -138,7 +138,7 @@ Prompt- and weight-level learning that is already measured.
 | T7.1 | GEPA prompt evolution (mutation + Pareto crossover, live driver) | ✅ | §15.3 item 4 — frontier covers 3/3 seed failures; multi-rep validation open |
 | T7.2 | Arm D adversarial refinement mesh | 🗑 | §15.3 item 3 — 33/40 @ ~4800 tok, fails the cost gate; mesh stays supervisor-of-one |
 | T7.3 | ACE experience store (append-only bullets, guarded merge) | ✅ | §15.3 item 5 |
-| T7.4 | Parametric memory: LoRA + EWC, trajectory export per role | 🟡 | §19.1, P2b — external `~/ki-station` training |
+| T7.4 | Parametric memory: LoRA + EWC, trajectory export per role | 🟡 | §19.1, P2b — external training repository |
 | T7.5 | Parametric-memory counter-position (MAAI C2 critique) | ⏸ | §P2b counter-position |
 
 ## E8 Operator surfaces
@@ -165,7 +165,7 @@ Per-node llauncher, monitors, the model index.
 | T9.1 | Per-node llauncher instead of Ollama-in-Docker | ✅ | §15.4.4, §18.3 |
 | T9.2 | Monitor MCP tools | ✅ | §18.1 |
 | T9.3 | Throughput verdict | ✅ | §18.2 |
-| T9.4 | `~/ai_models/INDEX.md` model/server index | 🟡 | created 2026-11-25; node-c entry open (mesh task `1a212916ac96…`) |
+| T9.4 | Model/server index (host file, not in the repo) | 🟡 | created; node-c entry open (mesh task `1a212916ac96…`) |
 | T9.5 | node-c: update to HEAD + Inkling-2-Mini iGPU evaluation | 🟡 | mesh tasks `1a212915d13e…`, `1a2129169b3b…` |
 | T9.6 | LAN model sharing and demand planning | ☐ | §14.7 |
 
@@ -191,7 +191,7 @@ Per-node llauncher, monitors, the model index.
 
 ---
 
-## Teil II — Log (chronologisch, Evidenz)
+## Part II — Log (chronological, evidence)
 
 ### Built
 
@@ -230,7 +230,7 @@ Per-node llauncher, monitors, the model index.
   Config: `harness_coder="discuss"`, `discuss_models` (JSON list, empty ->
   `[model_coder]`), `judge_model`. Tests: `tests/test_harnesses_discuss.py`
   (phases, judge fallbacks, empty-models degenerate case, worker wiring).
-  Design note: `docs/design-discuss-harness.md`.
+  Design note: `docs/roadmap.md`.
 
 - **2026-11-15 — Pheromone routing field (14.15.10, initialization slice)**:
   `src/memnc/pheromone.py` — ACO-style score tau^alpha * eta^beta per
@@ -363,7 +363,7 @@ Per-node llauncher, monitors, the model index.
   compose entrypoint generates a Raft cluster block when
   `NATS_CLUSTER_ROUTES` is set (port 6222). Reference topologies (Solo /
   Duo cold-standby / Mesh >= 3 sites incl. witness) documented in
-  `docs/operations.md`. Deployment topology is settings-only — the
+  `docs/plan.md`. Deployment topology is settings-only — the
   framework is not tied to any one machine layout.
 
 ### 14. Milestones
@@ -425,7 +425,7 @@ Two core elements carry the mesh concept beyond DeepSeed's dsh-superagent (whose
 
 **Design consequence for S3:** the console is the observation window of self-organization, not a dashboard: it shows *who organizes how* (claims, roles, node roster) and *where the negotiation stands* (critique verdicts, trust, grants) — not just a task list.
 
-**Self-organization ladder** (, prompted by "how flexible should
+**Self-organization ladder** (prompted by "how flexible should
 role assignment be?"; grounded in SwarmHarness 2605.28764 as the origin
 paper). A deliberately ordered path — each step only pays off once the
 mesh is actually heterogeneous (different hardware/models per node):
@@ -464,7 +464,7 @@ distributes *work*; approvals stay human. That is the clean split.
 And per 
 ### 14.4 Outlook: task affinity, evidence metrics & learned distribution ()
 
-**Task affinity / "don't take the task away"** (from the DeepSeek dsh-superagent prototype, S., ):
+**Task affinity / "don't take the task away"** (from the DeepSeek dsh-superagent prototype):
 - Once a task is distributed to a model, it should not be immediately taken away again — models tend to ("I can do this better"), but redistribution is inefficient: the receive context (prefill, history, workspace state) must be rebuilt. DeepSeek solves this via a **long-term KV cache**; our counterpart: task stability at the workflow level.
 - *Status:* partially in — `origin_node` routing (M15) binds tasks to the owner node, claims are hard (CAS), critique loops stay with the same worker. **Not in:** affinity at the model level. Once cloud models enter the mesh (S2 variant with an external API), cache hits become a first-order cost/latency factor: redistribution = full prefill = full token payment; staying on the model instance = cache hit.
 - *Expansion:* routing considers `(node, model_id)` affinity — resumed tasks/follow-ups prefer the instance that already holds the context in cache. Hot-standby instances per role (Swift/Ollama) as cache carriers.
@@ -554,7 +554,7 @@ Checklist for shipping a new node:
 #
 ### 14.9 Hermes plugin as second approval surface (PLANNED, not built)
 
-Plan only — deliberately not implemented yet (the operator, ).
+Plan only — deliberately not implemented yet.
 
 A small Hermes-side plugin/skill wrapping `meshctl` as a second approval
 channel next to Telegram (
@@ -573,7 +573,7 @@ as the reference for the eventual in-repo plugin. Nothing of this ships
 with memnc until the operator green-lights it.
 
 #
-### 14.12 Graph-based experiential memory & stigmergic routing (PLANNED, )
+### 14.12 Graph-based experiential memory & stigmergic routing (PLANNED)
 
 Origin: Prior work in `eclipse-score/mcp-servers`
 (S-CORE APM monorepo) — the design is **already built there**, the mesh
@@ -640,7 +640,7 @@ merged experience graph, a god node reveals where knowledge concentrates
 ("everyone's traces point here") — a bootstrap answer for a new node and a
 signal for context prefetch on similar tasks.
 
-**Model-team synergy in the graph (the operator, ).** Which models
+**Model-team synergy in the graph.** Which models
 work well *together* is itself an observation: every task implicitly
 runs a team (the `route` dict maps roles to `node:model`). Each finished
 task deposits a cooperation edge for every unordered model pair that
@@ -809,8 +809,8 @@ While the Experience Graph is being built, these tracks must run in parallel to 
 - **Model Selection:** Deciding on the primary role-models (e.g., Gemma-4-31B for Critic).
 - **Prompt Engineering for observations:** Refining what constitutes a "high-value" observation.
 
-#### Track C: Corpus-Derived Architecture Proposals (, from 25-paper corpus)
-*Source: ~/research-papers synthesis + cross-reading. Top-3 by impact, ranked.*
+#### Track C: Corpus-Derived Architecture Proposals (from 25-paper corpus)
+*Source: research corpus synthesis + cross-reading. Top-3 by impact, ranked.*
 
 1. **Implicit preference-mining from failed trajectories** (Implicit-Preference paper, arXiv 2603.17187).
    Preference pairs can be auto-mined from self-corrections inside failed agent trajectories.
@@ -1315,7 +1315,7 @@ Status: core built + proven end-to-end; worker wiring, per-task selection, and
 the DiscussHarness are built (see above).
 
 The weak->strong proof (7b dirty pass -> produktiv fixer, 11/11 green in
-`~/memnc-harness-wt`) showed the *product* of a coding agent is workspace
+a separate worktree) showed the *product* of a coding agent is workspace
 state (git diff + tests), not structured patches. That is the contract the
 new `src/memnc/harnesses/` package formalizes; it sits above the inference
 backends (memnc.backends abstracts *models*, harnesses abstract *how the
@@ -1378,7 +1378,7 @@ using throwaway fake `pi` scripts.
    mesh self-organization: cheap models draft dirty, strong models fix.
 4. ~~`DiscussHarness` (multi-model debate) on the same contract.~~ DONE —
    `harnesses/discuss.py` + `settings.discuss_models`/`judge_model`; design
-   note in `docs/design-discuss-harness.md`. Debate object is the plan: K
+   note in `docs/roadmap.md`. Debate object is the plan: K
    text proposals, one critique round, judge picks a WINNER line, winner is
    executed by the in-proc tool loop (same contract, same tools). Degrades:
    failed judge/garbage winner -> first valid proposal; zero proposals ->
@@ -1386,9 +1386,9 @@ using throwaway fake `pi` scripts.
 
 ### 14.15 Backlog: plan-level task queue with atomic claim (BUILT 2026-11-14)
 
-User driver: "wir brauchen quasi einen Weg, Pläne auf Tasks runter zu
-brechen und die zu blocken wie ein Lock so dass nicht andere damit
-anfangen. Klassisches Scrum für Agents."
+User driver: "we basically need a way to break plans down into tasks and
+block them like a lock, so that others do not start on them. Classic Scrum
+for agents."
 
 **Design:** one level above the mesh task queue (`bus.try_claim`, commit
 a8cd309, KV-revision CAS as lock). `src/memnc/backlog.py`:
@@ -1463,7 +1463,7 @@ claimed task 1 and submitted it into the mesh.
 #### 14.15.2 Infra findings (night 2026-11-15)
 
 - All backlog attempts 404'd with `Client error '404 Not Found' for url 'http://host.docker.internal:11434/api/chat'` — root causes, both fixed/known:
-  1. `docker-compose.node.yml` had no `extra_hosts: host.docker.internal:host-gateway` (root compose already did) — fixed in commit e8ccf47; node-c stack recreated with it. NOTE: the repo on node-c (`~/memnc`, branch feat/m8-live-router with local mods) is a separate checkout — the compose fix was copied over manually and the node-c repo needs a proper re-sync later.
+  1. `docker-compose.node.yml` had no `extra_hosts: host.docker.internal:host-gateway` (root compose already did) — fixed in commit e8ccf47; node-c stack recreated with it. NOTE: the repo on node-c (a separate checkout, branch feat/m8-live-router with local mods) is a separate checkout — the compose fix was copied over manually and the node-c repo needs a proper re-sync later.
   2. node-c's ollama does NOT have `qwen2.5:7b` (planner) nor `qwen2.5-coder:32b` (coder) — ollama answers 404 for unknown models, which looks identical to a network error in the agent error string. node-c only has `qwen2.5-coder:7b`, `llama3.2:3b`, `swift`, `gemma4`, and a 27B/35B MoE coder. FIX PENDING (needs user OK, .env edit on node-c blocked overnight): point node-c's MODEL_PLANNER/MODEL_CODER/MODEL_CRITIC at `qwen2.5-coder:7b` — weak node, weak models, exactly the weak->strong routing slice's premise (node-a has the strong models: qwen2.5:7b, qwen2.5-coder:32b, produktiv, signal-27b...). No model download needed.
 - Design lesson for slice 3 (weak->strong routing): the 3x-fail -> FAILED measurement is exactly the signal the router needs — a task failing 3/3 on a weak node should be retried on a strong node before terminal failure, not just counted.
 
@@ -1605,7 +1605,7 @@ terminal. Only `task.*` events are final now; 3 tests
 Observed live (2026-11-16): 4 planned entries, all blocked forever on deps
 that reference MESH task ids (`1a1e...`) which ended terminal `failed` —
 even when the work itself succeeded later via backlog strong-retry. Driver
-idle for hours. Design: docs/design-backlog-dep-resolution.md.
+idle for hours. Design: docs/roadmap.md.
 
 Mechanism: `next_claimable(claimant, dep_checker=...)` — the driver passes
 `_mesh_dep_checker(settings)` (cli.py), which snapshots the mesh registry
@@ -1713,19 +1713,19 @@ Meta-Harness (2603.28052) and SkillDuet (2611.12109v2) into mesh vocabulary:
 6. Konsens-Protokoll direkt: agents agree directly — peer-to-peer voting
    over pitches in KV — no central FSM that decides alone.
 
-Gate (the operator): "Lass uns aber erst den Benchmark und die
-Evidenz aufsetzen" — do NOT implement routing before bench-report.md
+Gate (the operator): "first let us set up the benchmark and the
+evidence" — do NOT implement routing before bench-report.md
 numbers exist. Initialize alpha/beta/tau0 from measured benchmark data,
-not guesses. Evidence and model profiles land in docs/experience.md
+not guesses. Evidence and model profiles land in docs/roadmap.md
 (shared, committed experience store).
 
 #### 14.15.11 Slice: swarm-to-human legibility (PROPOSED 2026-11-14, discussion first)
 
 the operator's insight: memnc analyzes model-to-model interaction, but the
 real product interface is **swarm-to-human** — a human directing, observing and
-collaborating with the mesh. Kreative Mensch-Agenten-Kollaboration ist kaum im
-Mainstream angekommen; das Feld heisst in der Forschung Human-Swarm Interaction
-(HSI, aus Robotik/UAV) + Human-Agent Teaming (HAT). Edge-Thema, mega spannend.
+collaborating with the mesh. Creative human-agent collaboration has barely reached the mainstream. The
+research field is called human-swarm interaction (HSI, from robotics/UAV) plus
+human-agent teaming (HAT). An edge topic, very interesting.
 
 Research grounding (2026-11-14 chat, sources verified):
 1. Human-Swarm Interaction (arXiv 2504.02250): humans steer swarms via collective
@@ -1751,7 +1751,7 @@ Design consequence for memnc: humans need not more dialogue but LEGIBILITY.
 - (a) Present the collective as ONE entity: roster + pheromone heat as the
   swarm's "mood"/state, aggregated views (bench-report style), not per-agent logs.
 - (b) Provenance everywhere: which model produced which contribution, at what
-  confidence — docs/experience.md is the human-readable "who is good at what" layer.
+  confidence — docs/roadmap.md is the human-readable "who is good at what" layer.
 - (c) Surface conflicts, don't hide them: dissenting pitches shown as pitches,
   verify-gate outcomes as first-class UI objects.
 - (d) Discount group pressure: "3 agents agree" is a WEAKER signal than one
@@ -1766,8 +1766,8 @@ meshctl surface; independent of bench, can start after stage-2 runner.
 
 ### 15. Research evidence integration (2026-11-15) — intake CLOSED
 
-Twelve sources processed 2026-11-14/15 (the operator: "dann ist Schluss" — no further
-research material gets added). Each has a full entry in docs/experience.md plus a
+Twelve sources processed 2026-11-14/15 (the operator: "that is it" — no further
+research material gets added). Each has a full entry in docs/roadmap.md plus a
 fact-store record. Evidence classes: PEER-REVIEWED — ReAct (ICLR 2023), GEPA
 (ICLR 2026), ACE (ICLR 2026), MEM1 (ICLR 2026), Flow-DPO (NeurIPS 2024),
 non-cooperative poetry (Journal of Language Modelling 2026-02), TalkHier (IEEE
@@ -1849,7 +1849,7 @@ evidence for the Einzel-LoRA > Multi thesis.
 2. NATS message tuple schema (message/background/intermediate_output,
    persistent background in workflow_state) — design-first, small slice,
    TalkHier-derived. STATUS: design written 2026-11-15 —
-   docs/design-message-tuple.md (schema models, workflow_state companion
+   docs/roadmap.md (schema models, workflow_state companion
    key, opt-in flag, zero extra model calls; build order 4 steps).
    BUILD PROGRESS: step 1 done — schema models `Background` /
    `IntermediateOutput` / `MessageTuple` in schema.py + tests
@@ -1863,7 +1863,7 @@ evidence for the Einzel-LoRA > Multi thesis.
    (TalkHier, cost caveat), plan-in-KV (Ultracode), specialists with search
    (Codacus). Success criterion: beat arm B on hard tier at materially lower
    cost than arm C. STATUS: design written 2026-11-15 —
-   docs/design-arm-c2d.md (D1 adversarial single round first, D2 evaluator
+   docs/roadmap.md (D1 adversarial single round first, D2 evaluator
    split only if D1 < B, D3 structured tuples + plan-in-KV ships with D1).
    BUILT (2026-11-15): arm D (adversarial-mesh, D1) implemented in
    src/memnc/bench/runner.py — planner -> coder -> adversarial critic with an
@@ -1937,7 +1937,7 @@ evidence for the Einzel-LoRA > Multi thesis.
 5. ACE slice: automated Erfahrungsspeicher — append-only itemized bullets,
    deterministic merge, brevity-bias + context-collapse guards.
    STATUS: BUILT (2026-11-15) — src/memnc/experience_store.py (design in
-   docs/design-ace-experience.md): file-backed append-only itemized
+   docs/roadmap.md): file-backed append-only itemized
    bullets grouped by topic; deterministic merge with the context-collapse
    guard (Jaccard >= 0.8 near-duplicates folded, longer text wins) and a
    monotone merge (never shrinks); explicit guarded compress() step
@@ -1976,7 +1976,7 @@ evidence for the Einzel-LoRA > Multi thesis.
    Deterministic, no human labels. BenchEngine gained opt-in
    record_solutions (RunResult.solutions; ordinary rows stay lean).
    Tests: tests/test_bench_dpo.py (6). The learned verifier itself
-   (training on these pairs): design in docs/design-learned-verifier.md
+   (training on these pairs): design in docs/roadmap.md
    (V1 linear scorer vs V2 LoRA verifier ladder). V1 BUILT —
    src/memnc/bench/verifier.py: pure-stdlib pairwise logistic regression
    over deterministic solution features (files/bytes/lines/comment &
