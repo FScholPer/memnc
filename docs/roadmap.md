@@ -7,6 +7,110 @@ same file, so nothing lives off to the side.
 
 Status: `✅` built and verified · `🟡` partial / running · `☐` open · `⏸` deferred · `🗑` dropped
 
+<!-- board:start -->
+
+## Board
+
+Generated from the Part I tables by `scripts/board.py`. Edit the rows, not this block.
+
+- `SUBMITTED` planned · `WORKING` in progress · `COMPLETED` done and verified
+- `CANCELED` dropped · `DEFERRED` kept, not scheduled (no A2A equivalent)
+
+### P0 — now (10)
+
+| ID | Task | State |
+|---|---|---|
+| T1.4 | node-c (192.168.8.180) back on the bus and on mesh HEAD | WORKING |
+| T3.8 | Swarm-vs-single benchmark | SUBMITTED |
+| T11.1 | Node users cannot write mesh_grants / mesh_revocations or reshape streams (deny list in... | WORKING |
+| T11.2 | Heartbeat grants take the node from the subject; revoked nodes skipped | WORKING |
+| T11.3 | Trust credit on claim only for ids that hold a grant | WORKING |
+| T11.4 | Done-gate decides the outcome before observations and pheromones are deposited | WORKING |
+| T11.5 | Commands for finished or cancelled tasks are acknowledged, not run | WORKING |
+| T11.6 | Experience store writes hold an advisory lock per load-modify-save | WORKING |
+| T11.7 | VRAM reservation released when the task is terminal | WORKING |
+| T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner for... | SUBMITTED |
+
+### P1 — next (16)
+
+| ID | Task | State |
+|---|---|---|
+| T2.6 | Foreign-harness tool/approval routing over NATS | SUBMITTED |
+| T4.1 | Lease by liveness: heartbeat-age reap, explicit requeue event, DLQ | SUBMITTED |
+| T4.2 | Mid-turn suspension: AWAITING_HUMAN + continuation cursor | SUBMITTED |
+| T4.3 | Pre-act guard: per-role tool allowlists, destructive-command cards | SUBMITTED |
+| T4.4 | Blinded critic JSON gate, duplicate-diff escalation | SUBMITTED |
+| T4.5 | Confidence-triggered ask (deterministic triggers only in v1) | SUBMITTED |
+| T11.12 | Token-mode branch removed from compose (NATS_CONF:? only) — plan §21.4 item 1 | SUBMITTED |
+| T11.13 | NATS bind address: plan §21.2 says loopback by default, compose publishes 4222 and 6222... | SUBMITTED |
+| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI). A... | SUBMITTED |
+| T11.18 | Zero trust: signed messages checked against roster keys; per-node subject scopes; no sh... | SUBMITTED |
+| T11.19 | Snapshot and backlog compare-and-swap with a defined retry rule; command matching again... | SUBMITTED |
+| T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the me... | SUBMITTED |
+| T11.24 | Presence and discovery use the NATS micro-service API ($SRV, service endpoints). NATS i... | SUBMITTED |
+| T11.25 | Workload identity: short-lived, attestable SPIFFE-compatible identities issued at enrol... | SUBMITTED |
+| T11.26 | Cross-vendor agent handoff through an A2A v1.0 gateway at the edge. A2A is hosted by th... | SUBMITTED |
+| T11.27 | Observability follows the OpenTelemetry GenAI semantic conventions (agent spans, token ... | SUBMITTED |
+
+### P2 — later (18)
+
+| ID | Task | State |
+|---|---|---|
+| T1.5 | Durable tasks instead of one-shot (retry, error-aware) | WORKING |
+| T1.6 | VRAM as a schedulable resource on the admission path | SUBMITTED |
+| T3.9 | Pheromone routing: init, selection, worker honouring, decay | WORKING |
+| T6.1 | Experience graph: deposit wiring, trace query, synergy aggregation | WORKING |
+| T8.7 | Console v2: live view + problem surface | SUBMITTED |
+| T8.8 | Hermes plugin as second approval surface | SUBMITTED |
+| T9.4 | Model/server index (host file, not in the repo) | WORKING |
+| T9.5 | node-c: update to HEAD + Inkling-2-Mini iGPU evaluation | WORKING |
+| T9.6 | LAN model sharing and demand planning | SUBMITTED |
+| T9.7 | Model-management twin: health announce and capability matrix (MM1) | WORKING |
+| T9.8 | Twin collected by the orchestrator; mesh.resources.view request/reply endpoint (MM2) | WORKING |
+| T9.9 | Planner allocation as structured output, executed by the orchestrator (MM3) | WORKING |
+| T9.10 | Serving and control adapters: llauncher, Ollama, docker, llama-server (MM4, memnc.control) | WORKING |
+| T10.2 | Distribution and deployment | SUBMITTED |
+| T11.14 | Image pins by digest (nats, python) and pip-audit / trivy in CI — plan §21.4 item 2 | SUBMITTED |
+| T11.15 | Container hardening profile as an opt-in override — plan §21.4 item 3 | SUBMITTED |
+| T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | SUBMITTED |
+| T11.23 | Pheromone slug migration: entries keyed before the _SLUG_BAD change are orphaned (revie... | SUBMITTED |
+
+### Unranked (0)
+
+None.
+
+### Deferred (17)
+
+| ID | Task | State |
+|---|---|---|
+| T3.10 | Swarm-to-human legibility (discussion first) | DEFERRED |
+| T5.1 | meshctl evolve + evolution ledger (m_t) | DEFERRED |
+| T5.2 | Worktree sandboxing, one tree per hypothesis | DEFERRED |
+| T5.3 | Deterministic gates G_exp / G_acc (zero LLM calls) | DEFERRED |
+| T5.4 | Synthesis prompt: classify children, reimplement Δ_int | DEFERRED |
+| T5.5 | Per-generation observability, /approve_promote before hot-reload | DEFERRED |
+| T5.6 | First real run: 10 generations, width 7, idle window | DEFERRED |
+| T6.2 | Heterogeneous observation graph + link predictor (RGCN/GraphSAGE) | DEFERRED |
+| T6.3 | Cold start W_proj from frozen LLM hidden states | DEFERRED |
+| T6.4 | MODEL_WORLD role (Qwen-AgentWorld-35B-A3B), surprise signal | DEFERRED |
+| T6.5 | Probes: THEORIZE → PROBE → VERIFY, <2 s, no side effects | DEFERRED |
+| T6.6 | Role LoRAs: trajectory export, training, Fisher-Merge, pinning | DEFERRED |
+| T7.4 | Parametric memory: LoRA + EWC, trajectory export per role | DEFERRED |
+| T7.5 | Parametric-memory counter-position (MAAI C2 critique) | DEFERRED |
+| T9.11 | Cost model from measured load times (MM5) | DEFERRED |
+| T10.4 | AutoSwarm outlook (heterogeneous harnesses under one roof) | DEFERRED |
+| T11.16 | Per-task subject isolation (NATS accounts) — plan §21.4 item 4 | DEFERRED |
+
+### Completed (36)
+
+T1.1, T1.2, T1.3, T2.1, T2.2, T2.3, T2.4, T2.5, T3.1, T3.2, T3.3, T3.4, T3.5, T3.6, T3.7, T4.6, T7.1, T7.3, T8.1, T8.2, T8.3, T8.4, T8.5, T8.6, T8.9, T9.1, T9.2, T9.3, T10.1, T10.3, T10.6, T10.7, T11.8, T11.9, T11.10, T11.11
+
+### Canceled (2)
+
+T7.2, T10.5
+
+<!-- board:end -->
+
 ## Contents
 
 **Part I — Plan**
@@ -51,9 +155,9 @@ Bus, FSM, attribution, node membership.
 | T1.1 | JetStream task subjects, snapshots, terminal events | ✅ | M8 clearance, §P0 |
 | T1.2 | Attribution entries and grants (single-writer `mesh.control`). Entries are recorded, not signed; signatures are T11.18 | ✅ | §14.4, §14.14 |
 | T1.3 | M14/M15/M16 live tests on both nodes | ✅ | §P2a |
-| T1.4 | node-c (192.168.8.180) back on the bus and on mesh HEAD | 🟡 | §15.4.2; mesh task `1a212915d13e…` |
-| T1.5 | Durable tasks instead of one-shot (retry, error-aware) | 🟡 | §15.4.3 — slice 1 shipped |
-| T1.6 | VRAM as a schedulable resource on the admission path | ☐ | §15.4.6 (design note) |
+| T1.4 | node-c (192.168.8.180) back on the bus and on mesh HEAD | 🟡 | **P0** · §15.4.2; mesh task `1a212915d13e…` |
+| T1.5 | Durable tasks instead of one-shot (retry, error-aware) | 🟡 | **P2** · §15.4.3 — slice 1 shipped |
+| T1.6 | VRAM as a schedulable resource on the admission path | ☐ | **P2** · §15.4.6 (design note) |
 
 ## E2 Harness layer
 
@@ -82,7 +186,7 @@ Plan-level queue, claims, routing by evidence.
 | T3.6 | Wake-on-backlog / WOL | ✅ | §14.15.8 |
 | T3.7 | Cross-task dependency resolution | ✅ | §14.15.12 |
 | T3.8 | Swarm-vs-single benchmark | ☐ | §14.15.9 · **P0**: decides whether E5 and E6 go ahead (§22) |
-| T3.9 | Pheromone routing: init, selection, worker honouring, decay | 🟡 | §14.15.10 — consolidation open |
+| T3.9 | Pheromone routing: init, selection, worker honouring, decay | 🟡 | **P2** · §14.15.10 — consolidation open |
 | T3.10 | Swarm-to-human legibility (discussion first) | ⏸ | §14.15.11 · deferred, roadmap §22 |
 
 ## E4 Task safety and human-in-the-loop
@@ -91,11 +195,11 @@ Phase 1. The safety valve for everything after it (issue #35, #37 Phase 1B).
 
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
-| T4.1 | Lease by liveness: heartbeat-age reap, explicit requeue event, DLQ | ☐ | P5.1 (§19.2) |
-| T4.2 | Mid-turn suspension: `AWAITING_HUMAN` + continuation cursor | ☐ | P5.2 (§19.2) |
-| T4.3 | Pre-act guard: per-role tool allowlists, destructive-command cards | ☐ | P5.3 (§19.2) |
-| T4.4 | Blinded critic JSON gate, duplicate-diff escalation | ☐ | P5.4 (§19.2) |
-| T4.5 | Confidence-triggered ask (deterministic triggers only in v1) | ☐ | P5.6 (§19.2) |
+| T4.1 | Lease by liveness: heartbeat-age reap, explicit requeue event, DLQ | ☐ | **P1** · P5.1 (§19.2) |
+| T4.2 | Mid-turn suspension: `AWAITING_HUMAN` + continuation cursor | ☐ | **P1** · P5.2 (§19.2) |
+| T4.3 | Pre-act guard: per-role tool allowlists, destructive-command cards | ☐ | **P1** · P5.3 (§19.2) |
+| T4.4 | Blinded critic JSON gate, duplicate-diff escalation | ☐ | **P1** · P5.4 (§19.2) |
+| T4.5 | Confidence-triggered ask (deterministic triggers only in v1) | ☐ | **P1** · P5.6 (§19.2) |
 | T4.6 | `WAIT_INPUT` ask/answer, clarify-before-human, `meshctl answer` | ✅ | §19.1 (built, but slot-parking) |
 
 **Exit criteria:** kill -9 a coder mid-task → exactly one `claim.reaped`, one
@@ -125,7 +229,7 @@ once the ledger holds enough tasks to train on.
 
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
-| T6.1 | Experience graph: deposit wiring, trace query, synergy aggregation | 🟡 | §14.12, §14.13 Steps 1–3; substrate exists (`observations`, `experience`, `synergy`) |
+| T6.1 | Experience graph: deposit wiring, trace query, synergy aggregation | 🟡 | **P2** · §14.12, §14.13 Steps 1–3; substrate exists (`observations`, `experience`, `synergy`) |
 | T6.2 | Heterogeneous observation graph + link predictor (RGCN/GraphSAGE) | ⏸ | P7.1 (§19.4) · deferred, roadmap §22 |
 | T6.3 | Cold start `W_proj` from frozen LLM hidden states | ⏸ | P7.2 · deferred, roadmap §22 |
 | T6.4 | `MODEL_WORLD` role (`Qwen-AgentWorld-35B-A3B`), surprise signal | ⏸ | P7.3 — only item allowed to add hardware · deferred, roadmap §22 |
@@ -156,7 +260,7 @@ Telegram, console, Hermes plugin.
 | T8.4 | Failure-first notifications with cause + retry buttons | ✅ | §14.11 P0.4 |
 | T8.5 | Quiet event stream, verbose override | ✅ | §14.11 P1.8 |
 | T8.6 | Model-suggestion flow on failure | ✅ | §14.11 P2.9 |
-| T8.7 | Console v2: live view + problem surface | ☐ | §14.10 (deferred) |
+| T8.7 | Console v2: live view + problem surface | ☐ | **P2** · §14.10 (deferred) |
 | T8.8 | Hermes plugin as second approval surface | ☐ | §14.9 · **P2**: first check the Hermes agent that already exists in the Synadia agents project (T11.24) |
 | T8.9 | Telegram write commands need an allow-listed sender (`TELEGRAM_ALLOW_USERS`) | ✅ | PR #42 merged; unit tests in CI; live check: set your user id, confirm a non-listed member is refused |
 
@@ -169,13 +273,13 @@ Per-node llauncher, monitors, the model index.
 | T9.1 | Per-node llauncher instead of Ollama-in-Docker | ✅ | §15.4.4, §18.3 |
 | T9.2 | Monitor MCP tools | ✅ | §18.1 |
 | T9.3 | Throughput verdict | ✅ | §18.2 |
-| T9.4 | Model/server index (host file, not in the repo) | 🟡 | created; node-c entry open (mesh task `1a212916ac96…`) |
-| T9.5 | node-c: update to HEAD + Inkling-2-Mini iGPU evaluation | 🟡 | mesh tasks `1a212915d13e…`, `1a2129169b3b…` |
-| T9.6 | LAN model sharing and demand planning | ☐ | §14.7 |
-| T9.7 | Model-management twin: health announce and capability matrix (MM1) | 🟡 | `mesh.node.health` is published by workers; the full matrix fields are partial (docs/model-management.md) |
-| T9.8 | Twin collected by the orchestrator; `mesh.resources.view` request/reply endpoint (MM2) | 🟡 | collection is built (`_on_health`); the endpoint does not exist |
-| T9.9 | Planner allocation as structured output, executed by the orchestrator (MM3) | 🟡 | allocation path and alloc gate exist; planners have no view permission, so the planner cannot read the twin |
-| T9.10 | Serving and control adapters: llauncher, Ollama, docker, llama-server (MM4, `memnc.control`) | 🟡 | adapters and tests exist; not verified on the fleet; drain intents are in the code |
+| T9.4 | Model/server index (host file, not in the repo) | 🟡 | **P2** · created; node-c entry open (mesh task `1a212916ac96…`) |
+| T9.5 | node-c: update to HEAD + Inkling-2-Mini iGPU evaluation | 🟡 | **P2** · mesh tasks `1a212915d13e…`, `1a2129169b3b…` |
+| T9.6 | LAN model sharing and demand planning | ☐ | **P2** · §14.7 |
+| T9.7 | Model-management twin: health announce and capability matrix (MM1) | 🟡 | **P2** · `mesh.node.health` is published by workers; the full matrix fields are partial (docs/model-management.md) |
+| T9.8 | Twin collected by the orchestrator; `mesh.resources.view` request/reply endpoint (MM2) | 🟡 | **P2** · collection is built (`_on_health`); the endpoint does not exist |
+| T9.9 | Planner allocation as structured output, executed by the orchestrator (MM3) | 🟡 | **P2** · allocation path and alloc gate exist; planners have no view permission, so the planner cannot read the twin |
+| T9.10 | Serving and control adapters: llauncher, Ollama, docker, llama-server (MM4, `memnc.control`) | 🟡 | **P2** · adapters and tests exist; not verified on the fleet; drain intents are in the code |
 | T9.11 | Cost model from measured load times (MM5) | ⏸ | not built · deferred, roadmap §22 |
 
 ## E10 Distribution and docs
@@ -183,7 +287,7 @@ Per-node llauncher, monitors, the model index.
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
 | T10.1 | Ship-gate V2 | ✅ | §16.2 |
-| T10.2 | Distribution and deployment | ☐ | §14.8 |
+| T10.2 | Distribution and deployment | ☐ | **P2** · §14.8 |
 | T10.3 | Docs cleanup, design notes absorbed | ✅ | §16 |
 | T10.4 | AutoSwarm outlook (heterogeneous harnesses under one roof) | ⏸ | §14.5 |
 | T10.5 | Not-pursuing list | 🗑 | §"Not pursuing" |
@@ -198,33 +302,33 @@ covered by CI, **not yet run on the live two-node mesh**.
 
 | ID | Task | Status | Evidence / log |
 |---|---|---|---|
-| T11.1 | Node users cannot write `mesh_grants` / `mesh_revocations` or reshape streams (deny list in `gen_nkeys`) | 🟡 | PR #47; live check: a node-user `put` to `mesh_grants` is refused, orchestrator unaffected |
-| T11.2 | Heartbeat grants take the node from the subject; revoked nodes skipped | 🟡 | PR #47; live check: a forged `node` in a heartbeat payload grants nothing |
-| T11.3 | Trust credit on claim only for ids that hold a grant | 🟡 | PR #47; CI tests the claim path with stand-ins |
-| T11.4 | Done-gate decides the outcome before observations and pheromones are deposited | 🟡 | PR #47 |
-| T11.5 | Commands for finished or cancelled tasks are acknowledged, not run | 🟡 | PR #47 |
-| T11.6 | Experience store writes hold an advisory lock per load-modify-save | 🟡 | PR #47; per-host lock, not cross-host |
-| T11.7 | VRAM reservation released when the task is terminal | 🟡 | PR #47 |
+| T11.1 | Node users cannot write `mesh_grants` / `mesh_revocations` or reshape streams (deny list in `gen_nkeys`) | 🟡 | **P0** · PR #47; live check: a node-user `put` to `mesh_grants` is refused, orchestrator unaffected |
+| T11.2 | Heartbeat grants take the node from the subject; revoked nodes skipped | 🟡 | **P0** · PR #47; live check: a forged `node` in a heartbeat payload grants nothing |
+| T11.3 | Trust credit on claim only for ids that hold a grant | 🟡 | **P0** · PR #47; CI tests the claim path with stand-ins |
+| T11.4 | Done-gate decides the outcome before observations and pheromones are deposited | 🟡 | **P0** · PR #47 |
+| T11.5 | Commands for finished or cancelled tasks are acknowledged, not run | 🟡 | **P0** · PR #47 |
+| T11.6 | Experience store writes hold an advisory lock per load-modify-save | 🟡 | **P0** · PR #47; per-host lock, not cross-host |
+| T11.7 | VRAM reservation released when the task is terminal | 🟡 | **P0** · PR #47 |
 | T11.8 | Model-transport names are one safe path component | ✅ | PR #41 merged; unit test in CI |
 | T11.9 | Approve/reject model requests: exact id or unique prefix of 6+ characters | ✅ | PR #41 merged; unit test in CI |
 | T11.10 | Bounded submission size, depth and revisions; submit failures reported | ✅ | PR #46 merged; unit tests in CI |
 | T11.11 | Harness children get the allow-listed environment (`OPENCODE_ENV_PASS`, `PI_ENV_PASS`) | ✅ | PR #41 merged |
-| T11.12 | Token-mode branch removed from compose (`NATS_CONF:?` only) — plan §21.4 item 1 | ☐ | still open: compose keeps the `NATS_TOKEN` branch; needs all nodes on seeds first |
-| T11.13 | NATS bind address: plan §21.2 says loopback by default, compose publishes 4222 and 6222 on all interfaces | ☐ | contradiction, owner decision: add a `NATS_BIND` setting, or change the plan to name NATS as the exception |
-| T11.14 | Image pins by digest (`nats`, `python`) and `pip-audit` / `trivy` in CI — plan §21.4 item 2 | ☐ | Actions are SHA-pinned (PR #45); images and audit are not |
-| T11.15 | Container hardening profile as an opt-in override — plan §21.4 item 3 | ☐ | base compose stays simple by design |
+| T11.12 | Token-mode branch removed from compose (`NATS_CONF:?` only) — plan §21.4 item 1 | ☐ | **P1** · still open: compose keeps the `NATS_TOKEN` branch; needs all nodes on seeds first |
+| T11.13 | NATS bind address: plan §21.2 says loopback by default, compose publishes 4222 and 6222 on all interfaces | ☐ | **P1** · contradiction, owner decision: add a `NATS_BIND` setting, or change the plan to name NATS as the exception |
+| T11.14 | Image pins by digest (`nats`, `python`) and `pip-audit` / `trivy` in CI — plan §21.4 item 2 | ☐ | **P2** · Actions are SHA-pinned (PR #45); images and audit are not |
+| T11.15 | Container hardening profile as an opt-in override — plan §21.4 item 3 | ☐ | **P2** · base compose stays simple by design |
 | T11.16 | Per-task subject isolation (NATS accounts) — plan §21.4 item 4 | ⏸ | only if untrusted nodes ever join |
-| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI). Also drops the `~/.ssh` and opencode-config mounts from worker containers (review F4) | ☐ | new component, design agreed in principle, not built; mounts still present in compose |
-| T11.18 | Zero trust: signed messages checked against roster keys; per-node subject scopes; no shared token in the trust model | ☐ | not built; workers still need the wide `$JS.>` and `$KV.*.>` permissions |
-| T11.19 | Snapshot and backlog compare-and-swap with a defined retry rule; command matching against the current attempt; `workflow_state` pruning | ☐ | not built; `put_snapshot` is unconditional at 33 call sites |
-| T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | needs a real two-node run and the owner's force-push |
-| T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the mesh task or wait for its terminal state (review F6) | ☐ | the timeout itself is fixed; the cancel subject needs a decision |
-| T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | ☐ | the base image is still unpinned too (T11.14) |
+| T11.17 | SSH broker: workers never hold keys; each use needs human approval (Telegram or CLI). Also drops the `~/.ssh` and opencode-config mounts from worker containers (review F4) | ☐ | **P1** · new component, design agreed in principle, not built; mounts still present in compose |
+| T11.18 | Zero trust: signed messages checked against roster keys; per-node subject scopes; no shared token in the trust model | ☐ | **P1** · not built; workers still need the wide `$JS.>` and `$KV.*.>` permissions |
+| T11.19 | Snapshot and backlog compare-and-swap with a defined retry rule; command matching against the current attempt; `workflow_state` pruning | ☐ | **P1** · not built; `put_snapshot` is unconditional at 33 call sites |
+| T11.20 | Live verification of #47 on both nodes (T11.1–T11.7) and the history rewrite (owner force-push of `main`) | ☐ | **P0** · needs a real two-node run and the owner's force-push |
+| T11.21 | Watch timeout must not start a second run while the first is still alive: cancel the mesh task or wait for its terminal state (review F6) | ☐ | **P1** · the timeout itself is fixed; the cancel subject needs a decision |
+| T11.22 | Pin the opencode installer by version and checksum in the worker image (review F10) | ☐ | **P2** · the base image is still unpinned too (T11.14) |
 | T11.24 | Presence and discovery use the NATS micro-service API (`$SRV`, service endpoints). NATS is CNCF graduated and runs NVIDIA's AI-factory event bus (DSX Exchange). The Synadia Agent Protocol draft is an optional interop profile, not a dependency. The roster KV stays as the cache | ☐ | **P1**, standard (NATS; plan D2, D7) |
 | T11.25 | Workload identity: short-lived, attestable SPIFFE-compatible identities issued at enrollment. NATS credentials stay NKey-based. Replaces the "no CA" rule (plan §21.1 rule 3, D4, D7) | ☐ | **P1**, standard. Enrollment stays one command |
 | T11.26 | Cross-vendor agent handoff through an A2A v1.0 gateway at the edge. A2A is hosted by the Agentic AI Foundation, which AWS, Google, Microsoft, OpenAI and Anthropic belong to. MCP stays the tool surface (plan D6, D7) | ☐ | **P1**, standard; after the P0 live checks |
 | T11.27 | Observability follows the OpenTelemetry GenAI semantic conventions (agent spans, token and cost metrics). Adopted by Google Cloud, AWS, Azure and Datadog. Telemetry is logs and monitoring tools today | ☐ | **P1**, standard (CNCF; plan D7) |
-| T11.23 | Pheromone slug migration: entries keyed before the `_SLUG_BAD` change are orphaned (review F11) | ☐ | needs an owner decision: re-key, or drop the old bucket on upgrade |
+| T11.23 | Pheromone slug migration: entries keyed before the `_SLUG_BAD` change are orphaned (review F11) | ☐ | **P2** · needs an owner decision: re-key, or drop the old bucket on upgrade |
 
 **Exit criteria:** every 🟡 row above has a live check recorded in Part II; T11.12
 and T11.13 have a decision recorded in plan §21; no open security item lives only
@@ -458,7 +562,7 @@ Goal: both nodes are **architecturally identical** — every node can submit, pl
 Non-blockers (optional afterwards): broker JWT/ACL hardening (M9 remainder), raise `MAX_TOOL_STEPS` for the 3B coder, trust utility in the claim decision (M8 score at claim poll).
 
 #
-### 14.2 Expansion stage: smoke gate, UI, human steering ()
+### 14.2 Expansion stage: smoke gate, UI, human steering
 
 *Status: S1 is implemented and green (`39be633`). S2–S4 are pure planning — nothing built yet. The outlook sections 14.3/14.4 are also vision, not a roadmap with dates.*
 
@@ -476,7 +580,7 @@ This stage comes **after** M16 (real peer orchestration live) and turns the mesh
 Scope note: S4 replaces neither the M9 ACLs (machine layer) nor the trust scores (statistical layer) — the human veto is the third layer on top.
 
 #
-### 14.3 Outlook: self-organization & social competence ()
+### 14.3 Outlook: self-organization & social competence
 
 Two core elements carry the mesh concept beyond DeepSeed's dsh-superagent (whose panel shows only "what needs a person" — the human in the loop; our agents additionally organize *among themselves*):
 
@@ -528,7 +632,7 @@ mesh is actually heterogeneous (different hardware/models per node):
 Guardrail: none of this weakens the human gate — self-organization
 distributes *work*; approvals stay human. That is the clean split.
 And per 
-### 14.4 Outlook: task affinity, evidence metrics & learned distribution ()
+### 14.4 Outlook: task affinity, evidence metrics & learned distribution
 
 **Task affinity / "don't take the task away"** (from the DeepSeek dsh-superagent prototype):
 - Once a task is distributed to a model, it should not be immediately taken away again — models tend to ("I can do this better"), but redistribution is inefficient: the receive context (prefill, history, workspace state) must be rebuilt. DeepSeek solves this via a **long-term KV cache**; our counterpart: task stability at the workflow level.
@@ -554,7 +658,7 @@ And per
 
 
 #
-### 14.6 Expansion stage: Telegram channel + console expansion — visibility, intervention, human-in-the-loop ()
+### 14.6 Expansion stage: Telegram channel + console expansion — visibility, intervention, human-in-the-loop
 
 *Trigger:* the M14 live test succeeded (task `1a1ad38d` → DONE rev=0 without orchestrator; the Gemma-31B critic verified itself via the MCP shell). Self-organization works — but it is invisible: you have to poll `meshctl state` yourself and grep through log files. The tests were laborious; the mesh needs a window through which the operator can **follow along, intervene, and steer**. Models: grok.bot / dots — a bot interface as the primary interface to the mesh.
 
@@ -577,12 +681,12 @@ Deliberately left out: no cloud dependency (the bot runs locally, only the Teleg
 *Note from the AgentLance reading (T7 design principle):* the authors themselves concede the main weakness of their market — agents often misestimate their bids (private costs) and bid suboptimally; the paper's fixes (reputation update, strategy notes) mitigate this but do not remove it. For memnc this means: our claim weighting must never be blindly guessed from model context — bids/reputation draw only on hard numbers kept in the ledger (measured task runtimes, critic-score history, verify-gate results). No self-declared capabilities in the roster; capabilities are measured, not claimed.
 
 #
-### 14.6.1 Status ()
+### 14.6.1 Status
 
 *Status ():* T0, T1, T6, T7.5, T2, T3, T4 and T5 shipped. T5 (commit `ac9f10c`, discussion streaming): every coder/critic result now emits a readable `debate.code` / `debate.critique` event and records it into the task snapshot history — implemented as a shared `emit_debate()` helper in `bus.py` used by both the orchestrator (`_handle_result`) and the worker self-pipeline (M14). `meshctl trace <task-id>` and the Telegram `/trace <task-id>` command replay that history (`format_trace` in telegram.py is shared by both); the console task detail renders a "Debate trace" section under the raw snapshot. Live-verified end to end: a submitted task ran coder → critic, `meshctl trace` showed `debate.code` (summary + files) and `debate.critique` (APPROVED verdict + summary). 203 tests green (was 194). T4's task-detail-with-trace is now covered; model-routing-visible remains open. T7, T8 open. T4 (console expansion, first slice): the console now shows a **Nodes** table (roster live status: roles, models, VRAM/GPU, paused flag, last heartbeat) and forwards human control commands via `POST /api/control` — `pause_node`/`resume_node` for a node and `cancel`/`retry` for a task, always acting as agent `console` (the orchestrator grant-checks that id, so the buttons answer with a deny until `meshctl grant console` is issued). `meshctl pause <node>` / `meshctl resume <node>` do the same from the CLI. A paused node stops claiming work (the `paused` flag rides the roster entry, survives heartbeat merges, and is cleared by `resume_node` or a node restart); other nodes keep claiming its tasks. Task-detail-with-trace and model-routing-visible remain open parts of T4 scope. 194 tests green. T5, T7, T8 open. T3 (approval gate): tasks carry `gate: always|fail|never` (default `never` = legacy behavior); when the critic result reaches CRITIQUE, the FSM parks the task (`needs_human=true`, `task.parked` event) instead of finishing/revisioning whenever the gate applies (`always` = park on both verdicts, `fail` = park on rejection). A human decides via Telegram `/gate approve|reject <task-id>` or `meshctl gate approve|reject <task-id>` (both go through the same `mesh.control` `decide` action, grant-checked like all T2 commands): approve → DONE, reject → revision (exhausted revisions → FAILED). Results arriving for a parked task are ignored. Telegram `/approve`|`/reject` remain reserved for T7.5 model requests. T2 (commit `9e463a0` + `fae6b2c` + `46db138`): `ControlCommand` on subject `mesh.control`; orchestrator grant-checks each command (deny-by-default via `acl.check_registry_write`, CHAIN level) and records accepted actions as `human.submit` / `human.cancel` / `human.retry` events on the task snapshot. Telegram commands `/submit`, `/cancel`, `/retry`, `/stop worker <node>` forward via request-reply; response is JSON (`{"ok":true,"task_id":...}` or `{"error":...}`). The Telegram agent id is `telegram-<chat>` (KV keys reject `:`); a `CHAIN` grant for it must be issued once via `meshctl grant`. `stop_worker` withdraws all capability records on the named node — the process itself keeps running until the operator stops it on the host (per scope note above). Submit path is shared with meshctl submit (`_accept_submission`, incl. the M11 depth check).
 
 #
-### 14.7 Outlook: model demand planning & LAN model sharing ()
+### 14.7 Outlook: model demand planning & LAN model sharing
 
 *Trigger:* Design idea — shuttle models back and forth between nodes so a model does not have to be loaded multiple times.
 
@@ -997,7 +1101,7 @@ today.
 | B1 | Experience-graph steps 1–4 (
 
 ### Later
-### 14.13 Build-order roadmap for the experience graph ()
+### 14.13 Build-order roadmap for the experience graph
 
 Dependency-ordered sequence from the current state to the full 
 §14.12 point 4).
@@ -1088,7 +1192,7 @@ a baseline we cannot know whether flexible distribution beats the
 static one.
 
 #
-### 14.5 Outlook: AutoSwarm — heterogeneous agent harnesses under one roof ()
+### 14.5 Outlook: AutoSwarm — heterogeneous agent harnesses under one roof
 
 Reference: [HKUDS/AutoSwarm](https://github.com/HKUDS/AutoSwarm) (arXiv 2610.33048, MIT) — not a replacement for our mesh design, but several concepts well suited for further expansion:
 
@@ -1129,7 +1233,7 @@ control plumbing), 3–4 as the second slice, 5–8 opportunistically.
 Items 9–10 wait for the robustness classifier / 
 §14.10 respectively.
 
-#### Verified against the live cluster ()
+#### Verified against the live cluster
 
 - Short IDs are a real gap: `meshctl state 1a1c28` → "task not found"
   (full 24-hex required today).
